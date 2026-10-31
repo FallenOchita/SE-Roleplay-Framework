@@ -1,0 +1,16 @@
+{
+  "servers": [
+    {
+      "id": "example-community-01",
+      "name": "Example RP Community",
+      "description": "Replace this example with a real community listing.",
+      "address": "play.example.invalid",
+      "port": 27016,
+      "players": 0,
+      "maxPlayers": 32,
+      "region": "North America",
+      "status": "Listing only",
+      "tags": ["Roleplay", "Survival", "Community"]
+    }
+  ]
+}
