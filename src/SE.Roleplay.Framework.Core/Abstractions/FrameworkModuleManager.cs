@@ -46,7 +46,7 @@ namespace SE.Roleplay.Framework.Core.Abstractions
             }
             catch
             {
-                StopInitializedModules();
+                StopInitializedModules(new HashSet<IFrameworkModule>());
                 throw;
             }
         }
@@ -67,36 +67,42 @@ namespace SE.Roleplay.Framework.Core.Abstractions
             }
             catch
             {
-                StopStartedModules();
+                var stopped = StopStartedModules();
+                StopInitializedModules(stopped);
                 throw;
             }
         }
 
         public void Stop()
         {
-            StopStartedModules();
-            StopInitializedModules();
+            var stopped = StopStartedModules();
+            StopInitializedModules(stopped);
             _startedOnce = false;
         }
 
-        private void StopStartedModules()
+        private HashSet<IFrameworkModule> StopStartedModules()
         {
+            var stopped = new HashSet<IFrameworkModule>();
             for (var i = _started.Count - 1; i >= 0; i--)
             {
-                try { _started[i].Stop(); }
-                catch (Exception ex) { _context.Logger.Error("Failed to stop module: " + _started[i].Name, ex); }
+                var module = _started[i];
+                try { module.Stop(); }
+                catch (Exception ex) { _context.Logger.Error("Failed to stop module: " + module.Name, ex); }
+                stopped.Add(module);
             }
             _started.Clear();
+            return stopped;
         }
 
-        private void StopInitializedModules()
+        private void StopInitializedModules(ISet<IFrameworkModule> alreadyStopped)
         {
             // Modules that initialized but never started may still own resources.
             for (var i = _initialized.Count - 1; i >= 0; i--)
             {
-                if (_started.Contains(_initialized[i])) continue;
-                try { _initialized[i].Stop(); }
-                catch (Exception ex) { _context.Logger.Error("Failed to clean up module: " + _initialized[i].Name, ex); }
+                var module = _initialized[i];
+                if (alreadyStopped.Contains(module)) continue;
+                try { module.Stop(); }
+                catch (Exception ex) { _context.Logger.Error("Failed to clean up module: " + module.Name, ex); }
             }
             _initialized.Clear();
         }
