@@ -134,8 +134,9 @@ namespace SE.Roleplay.Framework.Torch
             if (player == null || player.SteamId == 0 || _context == null)
                 return;
 
-            // Keep profile file work off the game thread.
-            _playerOperations[player.SteamId] = Task.Run(() => ConnectPlayerAsync(player.SteamId, player.Name));
+            // Serialize reconnects behind any previous join/leave operation for this Steam account.
+            _playerOperations.TryGetValue(player.SteamId, out var previousOperation);
+            _playerOperations[player.SteamId] = Task.Run(() => ConnectPlayerAsync(player.SteamId, player.Name, previousOperation));
         }
 
         private void OnPlayerLeft(IPlayer player)
@@ -159,10 +160,13 @@ namespace SE.Roleplay.Framework.Torch
                 TaskScheduler.Default);
         }
 
-        private async Task ConnectPlayerAsync(ulong steamId, string playerName)
+        private async Task ConnectPlayerAsync(ulong steamId, string playerName, Task? previousOperation)
         {
             try
             {
+                if (previousOperation != null)
+                    await previousOperation.ConfigureAwait(false);
+
                 await _context!.Sessions.ConnectAsync(steamId, playerName).ConfigureAwait(false);
                 _context.Logger.Info("Loaded profile for " + playerName + " (" + steamId + ").");
             }
