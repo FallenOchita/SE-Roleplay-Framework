@@ -1,0 +1,5 @@
+using System.Net.Http;
+using System.Text.Json;
+using SE.Roleplay.Launcher.Models;
+namespace SE.Roleplay.Launcher.Services;
+public sealed class ServerDirectoryClient { private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) }; public async Task<IReadOnlyList<ServerEntry>> GetServersAsync(string directoryUrl, CancellationToken cancellationToken = default) { if (!Uri.TryCreate(directoryUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)) throw new InvalidOperationException("Set a valid HTTP or HTTPS server directory URL in Settings."); await using var stream = await Http.GetStreamAsync(uri, cancellationToken); var servers = await JsonSerializer.DeserializeAsync<List<ServerEntry>>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken); return servers ?? []; } }
