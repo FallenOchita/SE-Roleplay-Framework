@@ -12,7 +12,7 @@ namespace SE.Roleplay.Framework.Core.Persistence
         Task<PlayerCharacter> CreateCharacterAsync(ulong platformId, string name, string description = "", CancellationToken cancellationToken = default);
         Task SelectCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
         Task DeleteCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
-        IReadOnlyCollection<PlayerCharacter> GetCharacters(ulong platformId);
+        Task<IReadOnlyCollection<PlayerCharacter>> GetCharactersAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task SaveAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task UnloadAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task SaveAllAsync(CancellationToken cancellationToken = default);
