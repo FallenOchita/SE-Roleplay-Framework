@@ -10,6 +10,8 @@ namespace SE.Roleplay.Framework.Core.Abstractions
     {
         IEventBus Events { get; }
         IPlayerIdentityService Players { get; }
+        PlayerSessionService Sessions { get; }
+        IPlayerProfileService Profiles { get; }
         IPermissionService Permissions { get; }
         IPlayerDataStore PlayerData { get; }
         FrameworkOptions Options { get; }
