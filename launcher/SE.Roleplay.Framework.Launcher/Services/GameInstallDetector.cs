@@ -1,8 +1,12 @@
+using System.IO;
 using Microsoft.Win32;
+
 namespace SE.Roleplay.Framework.Launcher.Services;
+
 public sealed class GameInstallDetector
 {
     private const string RelativeExecutable = "steamapps/common/SpaceEngineers/Bin64/SpaceEngineers.exe";
+
     public string? FindGameExecutable()
     {
         foreach (var keyPath in new[] {@"HKEY_CURRENT_USER\Software\Valve\Steam", @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam", @"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam"})
