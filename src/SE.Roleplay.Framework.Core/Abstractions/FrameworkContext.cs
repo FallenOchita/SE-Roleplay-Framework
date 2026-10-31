@@ -12,6 +12,8 @@ namespace SE.Roleplay.Framework.Core.Abstractions
         public FrameworkContext(
             IEventBus events,
             IPlayerIdentityService players,
+            PlayerSessionService sessions,
+            IPlayerProfileService profiles,
             IPermissionService permissions,
             IPlayerDataStore playerData,
             FrameworkOptions options,
@@ -19,6 +21,8 @@ namespace SE.Roleplay.Framework.Core.Abstractions
         {
             Events = events ?? throw new ArgumentNullException(nameof(events));
             Players = players ?? throw new ArgumentNullException(nameof(players));
+            Sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+            Profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
             Permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
             PlayerData = playerData ?? throw new ArgumentNullException(nameof(playerData));
             Options = options ?? throw new ArgumentNullException(nameof(options));
@@ -27,6 +31,8 @@ namespace SE.Roleplay.Framework.Core.Abstractions
 
         public IEventBus Events { get; }
         public IPlayerIdentityService Players { get; }
+        public PlayerSessionService Sessions { get; }
+        public IPlayerProfileService Profiles { get; }
         public IPermissionService Permissions { get; }
         public IPlayerDataStore PlayerData { get; }
         public FrameworkOptions Options { get; }

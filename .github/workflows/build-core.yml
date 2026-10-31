@@ -1,13 +1,13 @@
-name: Build core
+name: Build and test core
 
 on:
   push:
-    branches: [ main, core-foundation ]
+    branches: [ main, core-foundation, torch-server-adapter ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, core-foundation ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,3 +18,5 @@ jobs:
           dotnet-version: 8.0.x
       - name: Build core
         run: dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
+      - name: Run core tests
+        run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --verbosity normal
