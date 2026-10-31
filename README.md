@@ -64,7 +64,7 @@ The adapter targets .NET Framework 4.8, matching Torch's current project target.
 dotnet build src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj -c Release -p:TorchLibPath="C:\Torch" -p:GameBinariesPath="C:\SpaceEngineersDedicated\DedicatedServer64"
 ```
 
-Change those paths to your actual installation. The Torch directory must contain `Torch.dll` and `Torch.API.dll`; the dedicated-server directory must contain `VRage.Game.dll` and `VRage.Library.dll`.
+Change those paths to your actual installation. The Torch directory must contain `Torch.dll`, `Torch.API.dll`, and `NLog.dll`; the dedicated-server directory must contain `VRage.Game.dll` and `VRage.Library.dll`.
 
 ## Compatibility and safety
 
