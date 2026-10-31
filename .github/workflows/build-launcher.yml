@@ -1,0 +1,17 @@
+name: Build Launcher
+on:
+  push:
+    paths: ["src/SE.Roleplay.Launcher/**", ".github/workflows/build-launcher.yml"]
+  pull_request:
+    paths: ["src/SE.Roleplay.Launcher/**", ".github/workflows/build-launcher.yml"]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build WPF launcher
+        run: dotnet build src/SE.Roleplay.Launcher/SE.Roleplay.Launcher.csproj --configuration Release

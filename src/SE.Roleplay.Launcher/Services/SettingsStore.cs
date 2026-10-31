@@ -1,0 +1,4 @@
+using System.IO;
+using System.Text.Json;
+namespace SE.Roleplay.Launcher.Services;
+public sealed class SettingsStore { private readonly string _path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SERoleplayLauncher", "settings.json"); public async Task<LauncherSettings> LoadAsync() { try { if (!File.Exists(_path)) return new LauncherSettings(); await using var stream = File.OpenRead(_path); return await JsonSerializer.DeserializeAsync<LauncherSettings>(stream) ?? new LauncherSettings(); } catch { return new LauncherSettings(); } } public async Task SaveAsync(LauncherSettings settings) { Directory.CreateDirectory(Path.GetDirectoryName(_path)!); await using var stream = File.Create(_path); await JsonSerializer.SerializeAsync(stream, settings, new JsonSerializerOptions { WriteIndented = true }); } }
