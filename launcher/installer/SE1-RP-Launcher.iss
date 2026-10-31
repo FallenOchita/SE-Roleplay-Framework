@@ -13,7 +13,6 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\artifacts
 OutputBaseFilename=SE1-RP-Launcher-Setup-{#MyAppVersion}-x64
-SetupArchitecture=x64
 ArchitecturesInstallIn64BitMode=x64
 Compression=lzma2
 SolidCompression=yes
