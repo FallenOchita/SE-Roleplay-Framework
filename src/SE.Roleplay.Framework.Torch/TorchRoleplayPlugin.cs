@@ -86,7 +86,8 @@ namespace SE.Roleplay.Framework.Torch
             if (Interlocked.Exchange(ref _autosaveRunning, 1) != 0)
                 return;
 
-            _ = SaveAllProfilesAsync("scheduled autosave");
+            // JSON serialization and file I/O must not run on Torch's game-update thread.
+            _ = Task.Run(() => SaveAllProfilesAsync("scheduled autosave"));
         }
 
         private void OnSessionStateChanged(ITorchSession session, TorchSessionState state)
@@ -96,7 +97,7 @@ namespace SE.Roleplay.Framework.Torch
             else if (state == TorchSessionState.Unloading || state == TorchSessionState.Unloaded)
             {
                 DetachSession();
-                _ = SaveAllProfilesAsync("world session shutdown");
+                _ = Task.Run(() => SaveAllProfilesAsync("world session shutdown"));
             }
         }
 
@@ -132,8 +133,8 @@ namespace SE.Roleplay.Framework.Torch
             if (player == null || player.SteamId == 0 || _context == null)
                 return;
 
-            var operation = ConnectPlayerAsync(player.SteamId, player.Name);
-            _playerOperations[player.SteamId] = operation;
+            // Keep profile file work off the game thread.
+            _playerOperations[player.SteamId] = Task.Run(() => ConnectPlayerAsync(player.SteamId, player.Name));
         }
 
         private void OnPlayerLeft(IPlayer player)
@@ -141,7 +142,20 @@ namespace SE.Roleplay.Framework.Torch
             if (player == null || player.SteamId == 0 || _context == null)
                 return;
 
-            _playerOperations[player.SteamId] = DisconnectPlayerAsync(player.SteamId);
+            _playerOperations.TryGetValue(player.SteamId, out var pendingConnect);
+            var disconnect = Task.Run(() => DisconnectPlayerAsync(player.SteamId, pendingConnect));
+            _playerOperations[player.SteamId] = disconnect;
+
+            _ = disconnect.ContinueWith(
+                completed =>
+                {
+                    if (_playerOperations.TryGetValue(player.SteamId, out var current) &&
+                        ReferenceEquals(current, disconnect))
+                        _playerOperations.TryRemove(player.SteamId, out _);
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
 
         private async Task ConnectPlayerAsync(ulong steamId, string playerName)
@@ -157,11 +171,11 @@ namespace SE.Roleplay.Framework.Torch
             }
         }
 
-        private async Task DisconnectPlayerAsync(ulong steamId)
+        private async Task DisconnectPlayerAsync(ulong steamId, Task? pendingConnect)
         {
             try
             {
-                if (_playerOperations.TryGetValue(steamId, out var pendingConnect))
+                if (pendingConnect != null)
                     await pendingConnect.ConfigureAwait(false);
 
                 await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
@@ -170,10 +184,6 @@ namespace SE.Roleplay.Framework.Torch
             catch (Exception exception)
             {
                 _context!.Logger.Error("Could not save profile for Steam account " + steamId + ".", exception);
-            }
-            finally
-            {
-                _playerOperations.TryRemove(steamId, out _);
             }
         }
 
