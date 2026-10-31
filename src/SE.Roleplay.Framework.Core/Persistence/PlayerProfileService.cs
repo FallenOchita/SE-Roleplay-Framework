@@ -41,7 +41,7 @@ namespace SE.Roleplay.Framework.Core.Persistence
                     cached.LastKnownName = displayName.Trim();
                     cached.UpdatedAtUtc = DateTimeOffset.UtcNow;
                     await _store.SaveAsync(cached, cancellationToken).ConfigureAwait(false);
-                    return cached;
+                    return cached.Copy();
                 }
 
                 var record = await _store.LoadAsync(platformId, cancellationToken).ConfigureAwait(false)
