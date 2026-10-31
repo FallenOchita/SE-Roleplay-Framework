@@ -1,9 +1,13 @@
+using System.IO;
 using System.Text.Json;
 using SE.Roleplay.Framework.Launcher.Models;
+
 namespace SE.Roleplay.Framework.Launcher.Services;
+
 public sealed class SettingsStore
 {
     private readonly string _path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SERoleplayLauncher", "settings.json");
+
     public async Task<LauncherSettings> LoadAsync()
     {
         if (!File.Exists(_path)) return new LauncherSettings();
@@ -11,6 +15,7 @@ public sealed class SettingsStore
         catch (JsonException) { return new LauncherSettings(); }
         catch (IOException) { return new LauncherSettings(); }
     }
+
     public async Task SaveAsync(LauncherSettings settings)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
