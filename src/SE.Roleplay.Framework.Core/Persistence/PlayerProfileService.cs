@@ -65,7 +65,7 @@ namespace SE.Roleplay.Framework.Core.Persistence
 
                 if (_identities.TryGet(platformId, out var identity))
                     identity.SelectCharacter(record.SelectedCharacterId);
-                return record;
+                return record.Copy();
             }
             finally { gate.Release(); }
         }
@@ -128,10 +128,12 @@ namespace SE.Roleplay.Framework.Core.Persistence
             finally { gate.Release(); }
         }
 
-        public IReadOnlyCollection<PlayerCharacter> GetCharacters(ulong platformId)
+        public async Task<IReadOnlyCollection<PlayerCharacter>> GetCharactersAsync(ulong platformId, CancellationToken cancellationToken = default)
         {
-            var record = GetLoadedProfile(platformId);
-            return record.Characters.Select(c => c.Copy()).ToArray();
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try { return GetLoadedProfile(platformId).Characters.Select(c => c.Copy()).ToArray(); }
+            finally { gate.Release(); }
         }
 
         public async Task SaveAsync(ulong platformId, CancellationToken cancellationToken = default)
