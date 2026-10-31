@@ -1,3 +1,4 @@
+using Xunit;
 using SE.Roleplay.Framework.Core.Persistence;
 
 namespace SE.Roleplay.Framework.Core.Tests;
