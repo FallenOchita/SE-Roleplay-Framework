@@ -41,6 +41,8 @@ namespace SE.Roleplay.Framework.Core.Persistence
                     cached.LastKnownName = displayName.Trim();
                     cached.UpdatedAtUtc = DateTimeOffset.UtcNow;
                     await _store.SaveAsync(cached, cancellationToken).ConfigureAwait(false);
+                    if (_identities.TryGet(platformId, out var cachedIdentity))
+                        cachedIdentity.SelectCharacter(cached.SelectedCharacterId);
                     return cached.Copy();
                 }
 
