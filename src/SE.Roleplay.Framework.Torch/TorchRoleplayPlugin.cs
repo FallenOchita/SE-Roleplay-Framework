@@ -10,6 +10,7 @@ using SE.Roleplay.Framework.Core.Events;
 using SE.Roleplay.Framework.Core.Identity;
 using SE.Roleplay.Framework.Core.Permissions;
 using SE.Roleplay.Framework.Core.Persistence;
+using Torch;
 using Torch.API;
 using Torch.API.Managers;
 using Torch.API.Plugins;
