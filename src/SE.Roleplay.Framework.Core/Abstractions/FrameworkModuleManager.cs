@@ -13,6 +13,7 @@ namespace SE.Roleplay.Framework.Core.Abstractions
         private readonly List<IFrameworkModule> _started = new List<IFrameworkModule>();
         private bool _initializedOnce;
         private bool _startedOnce;
+        private bool _stopped;
 
         public FrameworkModuleManager(IFrameworkContext context)
         {
@@ -24,7 +25,7 @@ namespace SE.Roleplay.Framework.Core.Abstractions
         public void Register(IFrameworkModule module)
         {
             if (module == null) throw new ArgumentNullException(nameof(module));
-            if (_initializedOnce) throw new InvalidOperationException("Modules cannot be registered after initialization.");
+            if (_initializedOnce || _stopped) throw new InvalidOperationException("Modules cannot be registered after initialization or shutdown.");
             if (string.IsNullOrWhiteSpace(module.Name)) throw new ArgumentException("Module name is required.", nameof(module));
             if (_modules.Any(existing => string.Equals(existing.Name, module.Name, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("A module named '" + module.Name + "' is already registered.");
@@ -33,27 +34,29 @@ namespace SE.Roleplay.Framework.Core.Abstractions
 
         public void Initialize()
         {
-            if (_initializedOnce) throw new InvalidOperationException("Modules have already been initialized.");
+            if (_initializedOnce || _stopped) throw new InvalidOperationException("Modules have already been initialized or shut down.");
             _initializedOnce = true;
             try
             {
                 foreach (var module in _modules)
                 {
-                    module.Initialize(_context);
+                    // Track before calling Initialize so a partially initialized module also receives Stop.
                     _initialized.Add(module);
+                    module.Initialize(_context);
                     _context.Logger.Info("Initialized module: " + module.Name);
                 }
             }
             catch
             {
                 StopInitializedModules(new HashSet<IFrameworkModule>());
+                _stopped = true;
                 throw;
             }
         }
 
         public void Start()
         {
-            if (!_initializedOnce) throw new InvalidOperationException("Initialize modules before starting them.");
+            if (!_initializedOnce || _stopped) throw new InvalidOperationException("Initialize modules before starting them and do not restart after shutdown.");
             if (_startedOnce) throw new InvalidOperationException("Modules have already been started.");
             _startedOnce = true;
             try
@@ -69,15 +72,18 @@ namespace SE.Roleplay.Framework.Core.Abstractions
             {
                 var stopped = StopStartedModules();
                 StopInitializedModules(stopped);
+                _stopped = true;
                 throw;
             }
         }
 
         public void Stop()
         {
+            if (_stopped) return;
             var stopped = StopStartedModules();
             StopInitializedModules(stopped);
             _startedOnce = false;
+            _stopped = true;
         }
 
         private HashSet<IFrameworkModule> StopStartedModules()
