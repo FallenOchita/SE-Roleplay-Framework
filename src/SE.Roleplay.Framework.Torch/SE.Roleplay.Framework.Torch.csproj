@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SE.Roleplay.Framework.Torch</AssemblyName>
+    <RootNamespace>SE.Roleplay.Framework.Torch</RootNamespace>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <TorchLibPath Condition="'$(TorchLibPath)' == ''">$(TORCH_LIB_PATH)</TorchLibPath>
+    <GameBinariesPath Condition="'$(GameBinariesPath)' == ''">$(TORCH_GAME_BINARIES_PATH)</GameBinariesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SE.Roleplay.Framework.Core\SE.Roleplay.Framework.Core.csproj" />
+    <Reference Include="Torch">
+      <HintPath>$(TorchLibPath)\Torch.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Torch.API">
+      <HintPath>$(TorchLibPath)\Torch.API.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="NLog">
+      <HintPath>$(TorchLibPath)\NLog.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRage.Game">
+      <HintPath>$(GameBinariesPath)\VRage.Game.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRage.Library">
+      <HintPath>$(GameBinariesPath)\VRage.Library.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="manifest.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="ValidateTorchReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(TorchLibPath)' == ''" Text="Set TorchLibPath to the folder containing Torch.dll, Torch.API.dll, and NLog.dll." />
+    <Error Condition="'$(GameBinariesPath)' == ''" Text="Set GameBinariesPath to the Space Engineers DedicatedServer64 folder." />
+    <Error Condition="!Exists('$(TorchLibPath)\Torch.dll')" Text="Torch.dll was not found under TorchLibPath." />
+    <Error Condition="!Exists('$(TorchLibPath)\Torch.API.dll')" Text="Torch.API.dll was not found under TorchLibPath." />
+    <Error Condition="!Exists('$(TorchLibPath)\NLog.dll')" Text="NLog.dll was not found under TorchLibPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
+  </Target>
+</Project>

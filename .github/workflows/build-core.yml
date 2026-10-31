@@ -2,9 +2,9 @@ name: Build and test core
 
 on:
   push:
-    branches: [ main, core-foundation ]
+    branches: [ main, core-foundation, torch-server-adapter ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, core-foundation ]
 
 jobs:
   build-and-test:

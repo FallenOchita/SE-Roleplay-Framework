@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PluginManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Name>SE Roleplay Framework</Name>
+  <Guid>6E8F44D2-9D1A-4C76-9B67-6E4B5E9F3A21</Guid>
+  <Repository>FallenOchita/SE-Roleplay-Framework</Repository>
+  <Version>0.1.0</Version>
+</PluginManifest>
