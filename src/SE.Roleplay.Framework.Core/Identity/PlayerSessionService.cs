@@ -23,17 +23,20 @@ namespace SE.Roleplay.Framework.Core.Identity
         public async Task<PlayerRecord> ConnectAsync(ulong platformId, string displayName, CancellationToken cancellationToken = default)
         {
             _identities.Connect(platformId, displayName);
+            PlayerRecord profile;
             try
             {
-                var profile = await _profiles.LoadAsync(platformId, displayName, cancellationToken).ConfigureAwait(false);
-                _events.Publish(new PlayerConnected(platformId, displayName));
-                return profile;
+                profile = await _profiles.LoadAsync(platformId, displayName, cancellationToken).ConfigureAwait(false);
             }
             catch
             {
                 _identities.Disconnect(platformId);
                 throw;
             }
+
+            // Profile loading is complete before listeners are notified.
+            _events.Publish(new PlayerConnected(platformId, displayName));
+            return profile;
         }
 
         public async Task DisconnectAsync(ulong platformId, CancellationToken cancellationToken = default)
