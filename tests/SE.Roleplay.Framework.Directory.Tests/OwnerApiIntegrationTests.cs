@@ -182,11 +182,11 @@ public sealed class OwnerApiIntegrationTests
             {
                 services.AddAuthentication(options =>
                 {
-                    options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeName;
-                    options.DefaultChallengeScheme = TestSteamAuthHandler.Scheme;
-                    options.DefaultForbidScheme = TestSteamAuthHandler.Scheme;
+                    options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeNameName;
+                    options.DefaultChallengeScheme = TestSteamAuthHandler.SchemeName;
+                    options.DefaultForbidScheme = TestSteamAuthHandler.SchemeName;
                 }).AddScheme<AuthenticationSchemeOptions, TestSteamAuthHandler>(
-                    TestSteamAuthHandler.Scheme, _ => { });
+                    TestSteamAuthHandler.SchemeName, _ => { });
             });
         }
 
