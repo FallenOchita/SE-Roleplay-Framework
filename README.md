@@ -90,3 +90,38 @@ Change those paths to your actual installation. The Torch directory must contain
 - Keep persistence asynchronous at the boundary.
 - Avoid blocking file/database work on the game thread.
 - Back up persistent player data before upgrading the framework.
+
+
+## SE1 desktop launcher
+
+The Windows WPF launcher lives in `launcher/SE.Roleplay.Framework.Launcher/`.
+
+- Steam sign-in uses Steam OpenID in the system browser and verifies the returned assertion with Steam. The launcher never asks for or stores a Steam password.
+- The verified SteamID64 and recent server launch history are stored locally in `%LOCALAPPDATA%/SERoleplayLauncher/settings.json`.
+- The Play button starts Space Engineers through Steam (App ID `244850`); server Join buttons use Steam's `steam://connect/` link.
+- The Home page shows recently launched servers and a preview of the community directory. Browse Servers shows every listing returned by the configured directory.
+
+### Configure the community directory
+
+In the launcher Settings page, enter the HTTPS URL of a JSON directory endpoint. It must return a document shaped like this:
+
+```json
+{
+  "servers": [
+    {
+      "id": "community-server-id",
+      "name": "Example RP Community",
+      "description": "A persistent Space Engineers roleplay server.",
+      "address": "play.example.net",
+      "port": 27016,
+      "players": 0,
+      "maxPlayers": 32,
+      "region": "North America",
+      "status": "Online",
+      "tags": ["roleplay", "survival"]
+    }
+  ]
+}
+```
+
+Publish new server listings in the directory feed to make them appear in Browse Servers. The launcher does not currently host that public directory itself, and a displayed player count/status is only as current as the directory feed.
