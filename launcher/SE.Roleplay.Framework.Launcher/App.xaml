@@ -1,6 +1,7 @@
 <Application x:Class="SE.Roleplay.Framework.Launcher.App"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ StartupUri="MainWindow.xaml">
  <Application.Resources>
   <Color x:Key="Bg">#101419</Color><Color x:Key="Panel">#192129</Color><Color x:Key="Alt">#202B35</Color><Color x:Key="Accent">#35C58A</Color>
   <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource Bg}"/><SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}"/><SolidColorBrush x:Key="AltBrush" Color="{StaticResource Alt}"/><SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}"/><SolidColorBrush x:Key="TextBrush" Color="#F1F5F7"/><SolidColorBrush x:Key="MutedBrush" Color="#9AA8B4"/>
