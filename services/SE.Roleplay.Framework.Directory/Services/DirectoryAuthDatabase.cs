@@ -203,6 +203,15 @@ public sealed class DirectoryAuthDatabase
 
             INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
                 VALUES (5, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+            CREATE TABLE IF NOT EXISTS server_admission_settings (
+                server_id TEXT PRIMARY KEY REFERENCES directory_servers(id) ON DELETE CASCADE,
+                allowlist_enabled INTEGER NOT NULL DEFAULT 0 CHECK (allowlist_enabled IN (0, 1)),
+                updated_at_utc TEXT NOT NULL
+            );
+
+            INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
+                VALUES (6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
