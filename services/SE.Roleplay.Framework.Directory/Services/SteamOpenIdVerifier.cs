@@ -1,6 +1,6 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -113,7 +113,7 @@ public sealed class SteamOpenIdVerifier
         var now = _timeProvider.GetUtcNow();
         var nonceAccepted = _database is null
             ? TryConsumeInMemoryNonce(nonce, now)
-            : TryConsumeSharedNonce(nonce, now, cancellationToken);
+            : TryConsumeSharedNonce(nonce, now);
         if (!nonceAccepted)
             return null;
 
@@ -148,7 +148,7 @@ public sealed class SteamOpenIdVerifier
     }
 
     private bool TryConsumeSharedNonce(
-        string nonce, DateTimeOffset now, CancellationToken cancellationToken)
+        string nonce, DateTimeOffset now)
     {
         using var connection = _database!.CreateConnection();
         connection.Open();
