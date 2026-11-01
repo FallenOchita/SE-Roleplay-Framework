@@ -239,6 +239,10 @@ namespace SE.Roleplay.Framework.Torch
             var directoryUrl = Environment.GetEnvironmentVariable("SERPF_DIRECTORY_URL");
             var serverId = Environment.GetEnvironmentVariable("SERPF_SERVER_ID");
             var apiKey = Environment.GetEnvironmentVariable("SERPF_SERVER_API_KEY");
+            _eventManager = torch.Managers.GetManager<IEventManager>();
+            if (_eventManager == null)
+                throw new InvalidOperationException("Torch did not provide IEventManager; admission enforcement cannot be safely enabled.");
+
             if (!Uri.TryCreate(directoryUrl, UriKind.Absolute, out var directoryUri) ||
                 directoryUri.Scheme != Uri.UriSchemeHttps ||
                 !string.IsNullOrWhiteSpace(directoryUri.Query) ||
@@ -246,13 +250,11 @@ namespace SE.Roleplay.Framework.Torch
                 string.IsNullOrWhiteSpace(serverId) ||
                 string.IsNullOrWhiteSpace(apiKey))
             {
-                _context?.Logger.Warn("Directory admission enforcement was requested but its HTTPS URL, server ID, or server API key is invalid. Connections will not be admitted by this plugin.");
+                _admissionHandler = new TorchAdmissionEventHandler(_context!.Logger);
+                _eventManager.RegisterHandler(_admissionHandler);
+                _context.Logger.Warn("Directory admission enforcement was requested with invalid configuration. The fail-closed Torch hook is active and rejects pending connections until configuration is corrected.");
                 return;
             }
-
-            _eventManager = torch.Managers.GetManager<IEventManager>();
-            if (_eventManager == null)
-                throw new InvalidOperationException("Torch did not provide IEventManager; admission enforcement cannot be safely enabled.");
 
             _admissionHandler = new TorchAdmissionEventHandler(
                 new Uri(directoryUri.GetLeftPart(UriPartial.Authority) + directoryUri.AbsolutePath.TrimEnd('/') + "/"),
