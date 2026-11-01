@@ -52,3 +52,18 @@ Torch plugin packaging and deployment can differ between Torch releases. Validat
 ## Compatibility note
 
 The adapter follows Torch's `TorchPluginBase`, `ITorchSessionManager`, and `IMultiplayerManagerBase` APIs. A successful compile against local runtime assemblies and an actual dedicated-server smoke test are still required before calling this adapter production-ready.
+
+## Server-scoped character profiles
+
+Character ownership and persistence belong to the server, not the desktop launcher. Each Torch instance constructs its own `PlayerIdentityService`, `PlayerProfileService`, and `JsonPlayerDataStore`. The store is rooted at that instance's `Storage/SE-Roleplay-Framework/Players` directory, so the same SteamID joining two different server instances receives two independent profile files and character lists.
+
+The server-side profile API exposed through `IFrameworkContext.Profiles` provides:
+
+- `LoadAsync` when a player joins (performed by the Torch adapter).
+- `CreateCharacterAsync`, `GetCharactersAsync`, and `SelectCharacterAsync` for server-hosted character-management features.
+- `DeleteCharacterAsync` for server-authorized deletion.
+- Automatic save/unload on disconnect and periodic server autosave.
+
+The five-character limit is currently configured by `FrameworkOptions.MaximumCharactersPerPlayer` in the Torch adapter. Each server owner can set this independently.
+
+**Current boundary:** the persistence and profile-management API is server-side. A player-facing in-game command/menu for invoking create, list, select, and delete is a separate next step; the launcher intentionally does not own or store character data.
