@@ -42,6 +42,7 @@ public partial class MainWindow : Window
                 if (detected is not null) GamePathBox.Text = detected;
             }
 
+            _settings.RecentlyLaunchedServers ??= new List<ServerListing>();
             foreach (var server in _settings.RecentlyLaunchedServers.Take(10))
                 _recentServers.Add(server);
 
@@ -235,7 +236,8 @@ public partial class MainWindow : Window
         try
         {
             _gameLauncher.JoinServer(server.Address, server.Port);
-            _settings.RecentlyLaunchedServers.RemoveAll(s => s.Id == server.Id ||
+            _settings.RecentlyLaunchedServers.RemoveAll(s =>
+                (!string.IsNullOrWhiteSpace(server.Id) && s.Id == server.Id) ||
                 (string.Equals(s.Address, server.Address, StringComparison.OrdinalIgnoreCase) && s.Port == server.Port));
             _settings.RecentlyLaunchedServers.Insert(0, server);
             _settings.RecentlyLaunchedServers = _settings.RecentlyLaunchedServers.Take(10).ToList();
