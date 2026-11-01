@@ -17,6 +17,7 @@ const string SteamLoginPolicy = "steam-login";
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
+builder.Services.AddSingleton<DesktopTokenStore>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddHttpClient<SteamOpenIdVerifier>();
 
