@@ -10,7 +10,9 @@ public static class SteamOpenIdRequestBuilder
             !Uri.TryCreate(realm, UriKind.Absolute, out var realmUri) ||
             realmUri.Scheme != Uri.UriSchemeHttps ||
             !string.IsNullOrEmpty(realmUri.Query) ||
-            !string.IsNullOrEmpty(realmUri.Fragment))
+            !string.IsNullOrEmpty(realmUri.Fragment) ||
+            realmUri.AbsolutePath != "/" ||
+            !string.Equals(callback.GetLeftPart(UriPartial.Authority), realmUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Steam login requires absolute HTTPS callback and realm URLs.");
 
         var parameters = new Dictionary<string, string>
