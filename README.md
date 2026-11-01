@@ -118,6 +118,10 @@ In the launcher Settings page, enter the HTTPS URL of a JSON directory endpoint.
       "maxPlayers": 32,
       "region": "North America",
       "status": "Online",
+      "version": "Current SE1 version",
+      "websiteUrl": "https://example.net",
+      "discordUrl": "https://discord.gg/example",
+      "rulesUrl": "https://example.net/rules",
       "tags": ["roleplay", "survival"]
     }
   ]
@@ -125,3 +129,10 @@ In the launcher Settings page, enter the HTTPS URL of a JSON directory endpoint.
 ```
 
 Publish new server listings in the directory feed to make them appear in Browse Servers. The launcher does not currently host that public directory itself, and a displayed player count/status is only as current as the directory feed.
+
+
+### Launcher server discovery milestone
+
+The launcher server browser now supports text search across community names, descriptions, regions, and tags; online/offline/favorites filters; a server details panel; and locally saved favorites. Directory records are validated before display and joining, including host/port checks, duplicate-ID filtering, bounded response size, and HTTPS for non-local directory endpoints.
+
+The optional `version`, `websiteUrl`, `discordUrl`, and `rulesUrl` fields are accepted as directory metadata. This milestone does not yet provide a hosted directory service or a remote character-management API. Characters remain server-owned; launcher-based character management requires a secure server API with Steam account proof and server-side authorization, rather than trusting a locally stored SteamID.
