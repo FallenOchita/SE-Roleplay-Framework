@@ -459,7 +459,7 @@ public sealed class OwnerApiIntegrationTests
             {
                 if (_useSuccessfulSteamVerifier)
                 {
-                    services.AddHttpClient<SE.Roleplay.Framework.Directory.Services.SteamOpenIdVerifier>()
+                    services.AddHttpClient("SteamOpenIdVerifier")
                         .ConfigurePrimaryHttpMessageHandler(() => new SuccessfulSteamConfirmationHandler());
                 }
 
