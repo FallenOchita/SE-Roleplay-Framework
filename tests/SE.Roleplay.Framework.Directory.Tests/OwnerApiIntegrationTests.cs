@@ -153,7 +153,7 @@ public sealed class OwnerApiIntegrationTests
 
         public DirectoryApiFactory()
         {
-            Directory.CreateDirectory(_root);
+            System.IO.Directory.CreateDirectory(_root);
         }
 
         public HttpClient CreateOwnerClient(string steamId)
@@ -182,7 +182,7 @@ public sealed class OwnerApiIntegrationTests
             {
                 services.AddAuthentication(options =>
                 {
-                    options.DefaultAuthenticateScheme = TestSteamAuthHandler.Scheme;
+                    options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeName;
                     options.DefaultChallengeScheme = TestSteamAuthHandler.Scheme;
                     options.DefaultForbidScheme = TestSteamAuthHandler.Scheme;
                 }).AddScheme<AuthenticationSchemeOptions, TestSteamAuthHandler>(
@@ -193,14 +193,14 @@ public sealed class OwnerApiIntegrationTests
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
-            if (disposing && Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
+            if (disposing && System.IO.Directory.Exists(_root))
+                System.IO.Directory.Delete(_root, recursive: true);
         }
     }
 
     private sealed class TestSteamAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
-        public const string Scheme = "IntegrationTestSteam";
+        public const string SchemeName = "IntegrationTestSteam";
 
         public TestSteamAuthHandler(
             IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -215,8 +215,8 @@ public sealed class OwnerApiIntegrationTests
                 return Task.FromResult(AuthenticateResult.NoResult());
 
             var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.NameIdentifier, values[0]!) }, Scheme);
-            var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme);
+                new[] { new Claim(ClaimTypes.NameIdentifier, values[0]!) }, SchemeName);
+            var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName);
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
 
