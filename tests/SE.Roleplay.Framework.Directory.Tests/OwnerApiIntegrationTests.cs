@@ -452,13 +452,14 @@ public sealed class OwnerApiIntegrationTests
                 {
                     ["Directory:PublicBaseUrl"] = Origin + "/",
                     ["Directory:DataPath"] = Path.Combine(_root, "servers.json"),
+                    ["Directory:AuthDatabasePath"] = Path.Combine(_root, "auth.db"),
                     ["Directory:DataProtectionKeysPath"] = Path.Combine(_root, "keys")
                 }));
             builder.ConfigureTestServices(services =>
             {
                 if (_useSuccessfulSteamVerifier)
                 {
-                    services.AddHttpClient<SE.Roleplay.Framework.Directory.Services.SteamOpenIdVerifier>()
+                    services.AddHttpClient("SteamOpenIdVerifier")
                         .ConfigurePrimaryHttpMessageHandler(() => new SuccessfulSteamConfirmationHandler());
                 }
 

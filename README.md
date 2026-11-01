@@ -115,7 +115,7 @@ The hosted CI validates the host-neutral core/tests and directory API. It cannot
 - Directory API keys are generated cryptographically, stored as SHA-256 hashes, and checked using fixed-time comparison.
 - The public directory feed never exposes owner SteamIDs or API-key hashes.
 - The JSON directory store uses a process-local lock and atomic file replacement. Run one service instance per data file; use a shared transactional database before horizontal scaling.
-- Login-state and Steam nonce replay caches are process-local. Multi-instance deployments need shared atomic storage for these security controls as well.
+- Steam login state, Steam OpenID nonce replay protection, desktop OAuth authorization state/codes, and launcher token families are persisted in shared SQLite with atomic consume/rotation operations. The server directory JSON store still uses process-local locking and file replacement, so the complete directory service is not yet ready for multi-instance deployment.
 - Torch player counts are based on join/leave events observed after the plugin attaches. If the plugin loads while players are already connected, the initial count can be temporarily low until those players reconnect.
 - Permission grants are not yet restored from player profiles; permission persistence remains a follow-up.
 - Do not copy proprietary game or Torch assemblies into this repository.

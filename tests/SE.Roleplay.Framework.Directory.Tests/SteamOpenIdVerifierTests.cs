@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Configuration;
 using SE.Roleplay.Framework.Directory.Services;
 using Xunit;
 
@@ -99,6 +100,59 @@ public sealed class SteamOpenIdVerifierTests
 
         Assert.Equal(SteamId, first);
         Assert.Null(second);
+    }
+
+
+    [Fact]
+    public async Task VerifyAsync_RejectsNonceAlreadyConsumedByAnotherInstance()
+    {
+        var database = await CreateDatabaseAsync();
+        var first = CreateSuccessfulVerifier(database);
+        var second = CreateSuccessfulVerifier(database);
+        var assertion = CreateAssertion();
+
+        var firstResult = await first.VerifyAsync(assertion, ReturnTo);
+        var secondResult = await second.VerifyAsync(assertion, ReturnTo);
+
+        Assert.Equal(SteamId, firstResult);
+        Assert.Null(secondResult);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_OnlyOneInstanceCanConsumeNonceConcurrently()
+    {
+        var database = await CreateDatabaseAsync();
+        var verifiers = Enumerable.Range(0, 6)
+            .Select(_ => CreateSuccessfulVerifier(database))
+            .ToArray();
+        var assertion = CreateAssertion();
+
+        var results = await Task.WhenAll(verifiers.Select(verifier =>
+            verifier.VerifyAsync(assertion, ReturnTo)));
+
+        Assert.Single(results.Where(result => result == SteamId));
+        Assert.Equal(5, results.Count(result => result is null));
+    }
+
+    private static SteamOpenIdVerifier CreateSuccessfulVerifier(DirectoryAuthDatabase database) =>
+        new(new HttpClient(new StubHttpMessageHandler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("ns:http://specs.openid.net/auth/2.0\nis_valid:true\n")
+            }))), database);
+
+    private static async Task<DirectoryAuthDatabase> CreateDatabaseAsync()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "serpf-steam-nonce-tests", Guid.NewGuid().ToString("N"));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Directory:AuthDatabasePath"] = Path.Combine(directory, "auth.db")
+            })
+            .Build();
+        var database = new DirectoryAuthDatabase(configuration);
+        await database.InitializeAsync();
+        return database;
     }
 
     [Fact]

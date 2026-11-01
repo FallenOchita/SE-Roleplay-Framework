@@ -22,7 +22,12 @@ builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.Services.AddSingleton<DesktopTokenStore>();
 builder.Services.AddSingleton<DesktopAuthorizationCodeStore>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
-builder.Services.AddHttpClient<SteamOpenIdVerifier>();
+builder.Services.AddHttpClient("SteamOpenIdVerifier");
+builder.Services.AddTransient<SteamOpenIdVerifier>(services =>
+    new SteamOpenIdVerifier(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("SteamOpenIdVerifier"),
+        services.GetRequiredService<DirectoryAuthDatabase>(),
+        services.GetRequiredService<TimeProvider>()));
 
 var keyPath = builder.Configuration["Directory:DataProtectionKeysPath"]
     ?? Environment.GetEnvironmentVariable("SERPF_DATA_PROTECTION_KEYS_PATH")

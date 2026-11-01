@@ -68,6 +68,13 @@ public sealed class DirectoryAuthDatabase
             CREATE INDEX IF NOT EXISTS ix_steam_login_states_expiry
                 ON steam_login_states(expires_at_utc);
 
+            CREATE TABLE IF NOT EXISTS steam_openid_nonces (
+                nonce_hash TEXT PRIMARY KEY,
+                expires_at_utc TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_steam_openid_nonces_expiry
+                ON steam_openid_nonces(expires_at_utc);
+
             CREATE TABLE IF NOT EXISTS desktop_authorization_states (
                 state_hash TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL,
@@ -124,6 +131,8 @@ public sealed class DirectoryAuthDatabase
 
             INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
                 VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+            INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
+                VALUES (2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
