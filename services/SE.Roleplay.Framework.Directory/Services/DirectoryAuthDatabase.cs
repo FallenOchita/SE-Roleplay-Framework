@@ -165,6 +165,30 @@ public sealed class DirectoryAuthDatabase
 
             INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
                 VALUES (3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+            CREATE TABLE IF NOT EXISTS player_profiles (
+                steam_id64 TEXT PRIMARY KEY CHECK(length(steam_id64) = 17),
+                display_name TEXT NOT NULL,
+                biography TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS player_permission_grants (
+                server_id TEXT NOT NULL REFERENCES directory_servers(id) ON DELETE CASCADE,
+                steam_id64 TEXT NOT NULL CHECK(length(steam_id64) = 17),
+                permission TEXT NOT NULL,
+                granted_by_steam_id64 TEXT NOT NULL CHECK(length(granted_by_steam_id64) = 17),
+                granted_at_utc TEXT NOT NULL,
+                expires_at_utc TEXT NULL,
+                PRIMARY KEY(server_id, steam_id64, permission)
+            );
+            CREATE INDEX IF NOT EXISTS ix_player_permission_grants_player
+                ON player_permission_grants(steam_id64, server_id);
+            CREATE INDEX IF NOT EXISTS ix_player_permission_grants_expiry
+                ON player_permission_grants(expires_at_utc);
+
+            INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
+                VALUES (4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
