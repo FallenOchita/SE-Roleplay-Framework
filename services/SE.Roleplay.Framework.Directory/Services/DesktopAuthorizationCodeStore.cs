@@ -21,7 +21,7 @@ public sealed class DesktopAuthorizationCodeStore
     private readonly DirectoryAuthDatabase? _database;
 
     public DesktopAuthorizationCodeStore(TimeProvider? clock = null)
-        : this(null, clock) { }
+        : this(null, clock, useDatabase: false) { }
 
     public DesktopAuthorizationCodeStore(DirectoryAuthDatabase database, TimeProvider? clock = null)
         : this(database ?? throw new ArgumentNullException(nameof(database)), clock, useDatabase: true) { }
