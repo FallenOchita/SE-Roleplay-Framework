@@ -59,3 +59,9 @@ Listings become Offline when no heartbeat has been received for 90 seconds. A To
 - Server API keys are generated cryptographically, stored as SHA-256 hashes, and compared using fixed-time verification.
 - The public feed never includes credential hashes.
 - The JSON store uses a process-local async lock and atomic file replacement. Run one service instance per data file; use a shared database before horizontal scaling.
+
+## Steam login state groundwork
+
+The service registers an internal `SteamLoginStateStore` for the upcoming owner sign-in flow. It creates 256-bit cryptographically random URL-safe state values, stores only SHA-256 digests, binds each state to a server-generated browser-session identifier, and allows one successful consume within a maximum five-minute lifetime. Expired entries are pruned during store operations, and consumption is atomic within this process.
+
+This is groundwork only: no Steam login or owner-management routes are enabled yet. The future login endpoint must issue the browser-session identifier in a Secure, HttpOnly, SameSite=Lax cookie over HTTPS, pass that server-read cookie value to the state store, and never accept the binding identifier from request parameters or a request body. The current in-memory state store is process-local; a multi-instance deployment will require shared state storage or sticky routing with equivalent replay guarantees.
