@@ -21,13 +21,13 @@ public sealed class SteamLoginStateStore
     private readonly DirectoryAuthDatabase? _database;
 
     public SteamLoginStateStore(TimeProvider? timeProvider = null, TimeSpan? lifetime = null)
-        : this(null, timeProvider, lifetime) { }
+        : this(null, timeProvider, lifetime, initialize: true) { }
 
     public SteamLoginStateStore(DirectoryAuthDatabase database, TimeProvider? timeProvider = null,
         TimeSpan? lifetime = null)
-        : this((DirectoryAuthDatabase?)database, timeProvider, lifetime) { }
+        : this(database, timeProvider, lifetime, initialize: true) { }
 
-    private SteamLoginStateStore(DirectoryAuthDatabase? database, TimeProvider? timeProvider, TimeSpan? lifetime)
+    private SteamLoginStateStore(DirectoryAuthDatabase? database, TimeProvider? timeProvider, TimeSpan? lifetime, bool initialize)
     {
         _database = database;
         _timeProvider = timeProvider ?? TimeProvider.System;
