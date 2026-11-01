@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -194,6 +195,96 @@ public sealed class OwnerApiIntegrationTests
         list.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
         Assert.Empty(document.RootElement.GetProperty("servers").EnumerateArray());
+    }
+
+
+    [Fact]
+    public async Task SteamCallback_RejectsMissingAndDuplicateState()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false
+        });
+
+        var missing = await client.GetAsync("/auth/steam/callback");
+        var duplicate = await client.GetAsync("/auth/steam/callback?state=first&state=second");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, duplicate.StatusCode);
+    }
+
+    [Fact]
+    public async Task SteamCallback_RejectsMismatchedBrowserSession()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var state = await BeginSteamLoginAsync(client);
+        using var callback = new HttpRequestMessage(HttpMethod.Get, "/auth/steam/callback?state=" + Uri.EscapeDataString(state));
+        callback.Headers.Add("Cookie", "__Host-serpf-browser=" + new string('A', 43));
+
+        var response = await client.SendAsync(callback);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SteamCallback_ConsumesStateBeforeRejectingInvalidAssertion()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var state = await BeginSteamLoginAsync(client);
+        var first = await client.GetAsync("/auth/steam/callback?state=" + Uri.EscapeDataString(state));
+        var replay = await client.GetAsync("/auth/steam/callback?state=" + Uri.EscapeDataString(state));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+    }
+
+    [Fact]
+    public async Task SteamCallback_RejectsDuplicateOpenIdParameters()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var state = await BeginSteamLoginAsync(client);
+        var response = await client.GetAsync(
+            "/auth/steam/callback?state=" + Uri.EscapeDataString(state) +
+            "&openid.mode=id_res&openid.mode=cancel");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private static async Task<string> BeginSteamLoginAsync(HttpClient client)
+    {
+        var login = await client.GetAsync("/auth/steam/login");
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        Assert.NotNull(login.Headers.Location);
+
+        var steamQuery = QueryHelpers.ParseQuery(login.Headers.Location!.Query);
+        var returnTo = Assert.Single(steamQuery["openid.return_to"]);
+        var callbackQuery = QueryHelpers.ParseQuery(new Uri(returnTo).Query);
+        var state = Assert.Single(callbackQuery["state"]);
+        Assert.False(string.IsNullOrWhiteSpace(state));
+        return state;
     }
 
     private static async Task<HttpResponseMessage> SendHeartbeatAsync(HttpClient client, string id, string apiKey)
