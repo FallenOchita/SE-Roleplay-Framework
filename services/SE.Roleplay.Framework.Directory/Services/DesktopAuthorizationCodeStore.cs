@@ -228,7 +228,7 @@ public sealed class DesktopAuthorizationCodeStore
                 entry = reader.Read()
                     ? new CodeEntry(reader.GetString(0), reader.GetString(1), reader.GetString(2),
                         reader.GetString(3), DateTimeOffset.Parse(reader.GetString(4), CultureInfo.InvariantCulture,
-                            DateTimeStyles.RoundtripKind))
+                            DateTimeStyles.None))
                     : null;
             }
             transaction.Commit();
