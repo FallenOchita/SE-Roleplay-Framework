@@ -64,7 +64,7 @@ public sealed class SteamOpenIdService
             }
 
             var callback = ParseQuery(pieces[1].Split('?', 2)[1]);
-            if (!callback.TryGetValue("state", out var returnedState) || !CryptographicOperations.FixedTimeEquals(
+            if (!callback.TryGetValue("state", out var returnedState) || returnedState.Length != state.Length || !CryptographicOperations.FixedTimeEquals(
                     Encoding.UTF8.GetBytes(state), Encoding.UTF8.GetBytes(returnedState)))
             {
                 await RespondAsync(stream, "400 Bad Request", "This sign-in request is invalid. You can close this tab.");
@@ -86,7 +86,7 @@ public sealed class SteamOpenIdService
         if (Get("mode") != "id_res" ||
             Get("ns") != "http://specs.openid.net/auth/2.0" ||
             Get("return_to") != expectedReturnTo ||
-            Get("op_endpoint") != SteamEndpoint)
+            Get("op_endpoint") is not (SteamEndpoint or "https://steamcommunity.com/openid/"))
             throw new InvalidOperationException("Steam returned an unexpected sign-in response.");
 
         var claimedId = Get("claimed_id");
@@ -110,7 +110,7 @@ public sealed class SteamOpenIdService
             ["openid.mode"] = "check_authentication"
         };
         using var content = new FormUrlEncodedContent(verification.Where(p => p.Key.StartsWith("openid.", StringComparison.Ordinal)));
-        using var response = await Http.PostAsync(SteamEndpoint, content, cancellationToken);
+        using var response = await Http.PostAsync(Get("op_endpoint"), content, cancellationToken);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!Regex.IsMatch(body, @"(^|\r?\n)is_valid:true(\r?\n|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
