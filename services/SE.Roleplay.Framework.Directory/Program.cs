@@ -67,6 +67,17 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("owner-writes", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            (context.Connection.RemoteIpAddress?.ToString() ?? "unknown") + ":" +
+            (context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous"),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 64 * 1024);
