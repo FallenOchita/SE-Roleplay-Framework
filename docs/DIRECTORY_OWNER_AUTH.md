@@ -33,7 +33,7 @@ This document defines the security boundary and API contract before the Steam Op
 | GET | `/api/owner/me` | Return verified Steam account identity |
 | GET | `/api/owner/servers` | List only the signed-in owner's servers |
 | POST | `/api/owner/servers` | Register a server owned by the signed-in account; return its API key once |
-| PATCH | `/api/owner/servers/{id}` | Update listing metadata after owner check |
+| PUT | `/api/owner/servers/{id}` | Update listing metadata after owner check |
 | DELETE | `/api/owner/servers/{id}` | Delete only the owner's listing |
 | POST | `/api/owner/servers/{id}/rotate-key` | Replace the server API key and return the new key once |
 
