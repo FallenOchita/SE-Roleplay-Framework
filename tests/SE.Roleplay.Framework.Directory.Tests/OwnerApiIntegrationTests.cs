@@ -202,7 +202,9 @@ public sealed class OwnerApiIntegrationTests
     [Fact]
     public async Task SteamCallback_SignsInVerifiedSteamIdentityAndRotatesBrowserCookie()
     {
-        using var factory = new DirectoryApiFactory(useSuccessfulSteamVerifier: true);
+        using var factory = new DirectoryApiFactory(
+            useSuccessfulSteamVerifier: true,
+            useTestAuthentication: false);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri(Origin),
@@ -243,6 +245,13 @@ public sealed class OwnerApiIntegrationTests
             : Array.Empty<string>());
         Assert.Contains("__Host-serpf-owner", cookies, StringComparison.Ordinal);
         Assert.Contains("__Host-serpf-browser", cookies, StringComparison.Ordinal);
+
+        // The test factory deliberately has no header-based authentication handler here.
+        // This request must authenticate solely from the protected cookie issued by the callback.
+        var ownerResponse = await client.GetAsync("/api/owner/me");
+        Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
+        using var ownerJson = JsonDocument.Parse(await ownerResponse.Content.ReadAsStringAsync());
+        Assert.Equal(OwnerA, ownerJson.RootElement.GetProperty("steamId64").GetString());
     }
 
     [Fact]
@@ -386,10 +395,14 @@ public sealed class OwnerApiIntegrationTests
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "serpf-api-tests", Guid.NewGuid().ToString("N"));
         private readonly bool _useSuccessfulSteamVerifier;
+        private readonly bool _useTestAuthentication;
 
-        public DirectoryApiFactory(bool useSuccessfulSteamVerifier = false)
+        public DirectoryApiFactory(
+            bool useSuccessfulSteamVerifier = false,
+            bool useTestAuthentication = true)
         {
             _useSuccessfulSteamVerifier = useSuccessfulSteamVerifier;
+            _useTestAuthentication = useTestAuthentication;
             System.IO.Directory.CreateDirectory(_root);
         }
 
@@ -423,13 +436,16 @@ public sealed class OwnerApiIntegrationTests
                         .ConfigurePrimaryHttpMessageHandler(() => new SuccessfulSteamConfirmationHandler());
                 }
 
-                services.AddAuthentication(options =>
+                if (_useTestAuthentication)
                 {
-                    options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeName;
-                    options.DefaultChallengeScheme = TestSteamAuthHandler.SchemeName;
-                    options.DefaultForbidScheme = TestSteamAuthHandler.SchemeName;
-                }).AddScheme<AuthenticationSchemeOptions, TestSteamAuthHandler>(
-                    TestSteamAuthHandler.SchemeName, _ => { });
+                    services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeName;
+                        options.DefaultChallengeScheme = TestSteamAuthHandler.SchemeName;
+                        options.DefaultForbidScheme = TestSteamAuthHandler.SchemeName;
+                    }).AddScheme<AuthenticationSchemeOptions, TestSteamAuthHandler>(
+                        TestSteamAuthHandler.SchemeName, _ => { });
+                }
             });
         }
 
