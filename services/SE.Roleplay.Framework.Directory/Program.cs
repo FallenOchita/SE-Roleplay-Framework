@@ -17,6 +17,7 @@ const string SteamLoginPolicy = "steam-login";
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
+builder.Services.AddSingleton<DirectoryAuthDatabase>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.Services.AddSingleton<DesktopTokenStore>();
 builder.Services.AddSingleton<DesktopAuthorizationCodeStore>();
@@ -115,6 +116,9 @@ builder.Services.AddRateLimiter(options =>
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 64 * 1024);
 
 var app = builder.Build();
+
+// Create/upgrade the shared authentication database before serving requests.
+await app.Services.GetRequiredService<DirectoryAuthDatabase>().InitializeAsync();
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
 app.UseHttpsRedirection();
