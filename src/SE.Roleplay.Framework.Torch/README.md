@@ -11,6 +11,7 @@ This project is the Space Engineers 1 dedicated-server host adapter. It keeps To
 - Saves and unloads the profile when Torch reports a player leaving.
 - Runs a five-minute profile autosave while the plugin is active.
 - Flushes outstanding player operations and online profiles during plugin disposal.
+- Registers in-game and Torch chat commands for per-server character management.
 
 Player JSON files are stored under:
 
@@ -21,6 +22,19 @@ Player JSON files are stored under:
       Players/
         <SteamID>.json
 ```
+
+## Player character commands
+
+Players can manage their own characters through the server chat:
+
+| Command | Description |
+| --- | --- |
+| `!rp character list` | Lists characters stored by this server; the selected character is marked with `*`. |
+| `!rp character create "Name" "Description"` | Creates a character on this server. Description is optional. |
+| `!rp character select 2` | Selects the character at position 2 in the list. |
+| `!rp character delete 2` | Deletes the character at position 2 in the list. |
+
+Character positions are based on the current list order. Players can only operate on the profile associated with their own Steam account. The profile service enforces the server-configured five-character limit. Commands are registered through Torch's `CommandManager` when the plugin is loaded into a session.
 
 ## Build requirements
 
@@ -46,12 +60,13 @@ Adjust both paths to match your installation. Do not copy proprietary game or To
 3. Include the generated `manifest.xml` with the plugin.
 4. Add/enable the plugin in Torch and start a test world.
 5. Confirm the log reports adapter initialization and profile load/save events.
+6. Join the server and test the `!rp character` commands above.
 
 Torch plugin packaging and deployment can differ between Torch releases. Validate this package against your installed Torch build before using it on a live world.
 
 ## Compatibility note
 
-The adapter follows Torch's `TorchPluginBase`, `ITorchSessionManager`, and `IMultiplayerManagerBase` APIs. A successful compile against local runtime assemblies and an actual dedicated-server smoke test are still required before calling this adapter production-ready.
+The adapter follows Torch's `TorchPluginBase`, `ITorchSessionManager`, `IMultiplayerManagerBase`, and `Torch.Commands` APIs. A successful compile against local runtime assemblies and an actual dedicated-server smoke test are still required before calling this adapter production-ready.
 
 ## Server-scoped character profiles
 
@@ -60,10 +75,8 @@ Character ownership and persistence belong to the server, not the desktop launch
 The server-side profile API exposed through `IFrameworkContext.Profiles` provides:
 
 - `LoadAsync` when a player joins (performed by the Torch adapter).
-- `CreateCharacterAsync`, `GetCharactersAsync`, and `SelectCharacterAsync` for server-hosted character-management features.
-- `DeleteCharacterAsync` for server-authorized deletion.
+- `CreateCharacterAsync`, `GetCharactersAsync`, and `SelectCharacterAsync` for character management.
+- `DeleteCharacterAsync` for character deletion.
 - Automatic save/unload on disconnect and periodic server autosave.
 
-The five-character limit is currently configured by `FrameworkOptions.MaximumCharactersPerPlayer` in the Torch adapter. Each server owner can set this independently.
-
-**Current boundary:** the persistence and profile-management API is server-side. A player-facing in-game command/menu for invoking create, list, select, and delete is a separate next step; the launcher intentionally does not own or store character data.
+The five-character limit is configured by `FrameworkOptions.MaximumCharactersPerPlayer` in the Torch adapter. Each server owner can set this independently.
