@@ -112,3 +112,16 @@ Schema version 4 adds durable player profiles and server-scoped permission grant
 - Grants are keyed by server, player SteamID64, and permission name. Permission names are lowercase keys using letters, digits, dots, underscores, hyphens, and colons. Optional expiry is limited to 365 days.
 - Grant and revoke SQL statements verify server ownership in the same statement as the mutation. A server deletion cascades its grants. Expired grants are never returned as active.
 - Player profile and permission data are stored in the shared SQLite database, so they persist across restarts and service instances using the same database.
+
+
+### Desktop launcher owner API
+
+The directory exposes a bearer-token surface for the official launcher at `/api/launcher/owner/servers`:
+
+- `GET` lists only servers owned by the Steam identity in the validated launcher access token.
+- `POST` registers a server for that identity and returns its generated API key once.
+- `PUT /{id}` updates only a server owned by that identity.
+- `DELETE /{id}` removes only a server owned by that identity.
+- `POST /{id}/rotate-key` rotates only that owner's server key and returns the new key once.
+
+These routes require the `LauncherBearer` policy and the fixed `serpf-windows-launcher` client token. They do not accept a SteamID from the request and do not use browser cookies. Because bearer credentials are explicitly attached by the launcher rather than ambient browser cookies, these routes do not use browser CSRF tokens; HTTPS, token expiry, owner-write rate limits, and SQL-level owner predicates remain enforced. The existing `/api/owner/*` browser routes retain cookie authentication, same-origin checks, and antiforgery validation. Never persist or log a newly returned server API key in launcher settings.
