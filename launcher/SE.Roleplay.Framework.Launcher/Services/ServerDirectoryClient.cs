@@ -14,7 +14,7 @@ public sealed class ServerDirectoryClient
         if (!Uri.TryCreate(directoryUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
             throw new InvalidOperationException("Enter a valid HTTP or HTTPS server-directory URL in Settings.");
-        if (uri.Scheme == Uri.UriSchemeHttp && !IPAddress.IsLoopback(uri.Host) &&
+        if (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback &&
             !uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Remote server directories must use HTTPS.");
 
