@@ -17,6 +17,14 @@ The event bridge uses Torch's `IPlayer.SteamId` and `IPlayer.Name` properties. T
 
 The adapter references local Torch and game assemblies via `TorchLibPath` and `GameBinariesPath`. These assemblies are intentionally not committed. Build and smoke-test against the exact server installation before deployment.
 
+## Pre-admission allowlist enforcement
+
+When `SERPF_ADMISSION_ENFORCEMENT=true`, the Torch adapter registers a handler for Torch's dedicated-server `ValidateAuthTicketEvent`. This event occurs during the connection attempt, before the server accepts the player. The handler awaits Torch's existing authentication verdict first and only queries the directory when that verdict is successful.
+
+The directory's authenticated admission endpoint supplies the final allow/deny decision. The SteamID64 is taken from the server-side Torch event. If the directory is unavailable, the response is invalid, or required configuration is missing, the registered handler rejects the pending connection. The server API key remains in the Torch process environment and is never sent to the launcher.
+
+The integration requires `Torch.Server.dll` from the same Torch installation as the other Torch references. It depends on the directory admission API introduced in the server-admission-policy change. The event signature was verified against Torch's public source; a build against the target Torch binaries and a dedicated-server staging test are still required for release.
+
 ## Known follow-ups
 
 - Add a configurable Torch settings panel and admin/user commands.
