@@ -1,4 +1,6 @@
-using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -25,10 +27,20 @@ public sealed class SteamOpenIdVerifier
     private readonly HttpClient _httpClient;
     private readonly ConcurrentDictionary<string, DateTimeOffset> _consumedNonces = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
+    private readonly DirectoryAuthDatabase? _database;
 
     public SteamOpenIdVerifier(HttpClient httpClient, TimeProvider? timeProvider = null)
+        : this(httpClient, null, timeProvider) { }
+
+    public SteamOpenIdVerifier(
+        HttpClient httpClient, DirectoryAuthDatabase database, TimeProvider? timeProvider = null)
+        : this(httpClient, database ?? throw new ArgumentNullException(nameof(database)), timeProvider, true) { }
+
+    private SteamOpenIdVerifier(
+        HttpClient httpClient, DirectoryAuthDatabase? database, TimeProvider? timeProvider, bool useDatabase)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _database = database;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -99,8 +111,10 @@ public sealed class SteamOpenIdVerifier
             return null;
 
         var now = _timeProvider.GetUtcNow();
-        PruneConsumedNonces(now);
-        if (!_consumedNonces.TryAdd(nonce, now))
+        var nonceAccepted = _database is null
+            ? TryConsumeInMemoryNonce(nonce, now)
+            : TryConsumeSharedNonce(nonce, now, cancellationToken);
+        if (!nonceAccepted)
             return null;
 
         return match.Groups["steamId"].Value;
@@ -122,14 +136,50 @@ public sealed class SteamOpenIdVerifier
         return age >= TimeSpan.FromMinutes(-1) && age <= TimeSpan.FromMinutes(5);
     }
 
-    private void PruneConsumedNonces(DateTimeOffset now)
+    private bool TryConsumeInMemoryNonce(string nonce, DateTimeOffset now)
     {
         foreach (var entry in _consumedNonces)
         {
             if (now - entry.Value > TimeSpan.FromMinutes(10))
                 _consumedNonces.TryRemove(entry.Key, out _);
         }
+
+        return _consumedNonces.TryAdd(nonce, now);
     }
+
+    private bool TryConsumeSharedNonce(
+        string nonce, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        using var connection = _database!.CreateConnection();
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        using (var prune = connection.CreateCommand())
+        {
+            prune.Transaction = transaction;
+            prune.CommandText = "DELETE FROM steam_openid_nonces WHERE expires_at_utc <= $now;";
+            prune.Parameters.AddWithValue("$now", FormatTimestamp(now));
+            prune.ExecuteNonQuery();
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = """
+            INSERT OR IGNORE INTO steam_openid_nonces (nonce_hash, expires_at_utc)
+            VALUES ($nonce, $expires);
+            """;
+        insert.Parameters.AddWithValue("$nonce", HashNonce(nonce));
+        insert.Parameters.AddWithValue("$expires", FormatTimestamp(now.AddMinutes(10)));
+        var inserted = insert.ExecuteNonQuery() == 1;
+        transaction.Commit();
+        return inserted;
+    }
+
+    private static string HashNonce(string nonce) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(nonce)));
+
+    private static string FormatTimestamp(DateTimeOffset value) =>
+        value.UtcDateTime.ToString("O", CultureInfo.InvariantCulture);
 
     private static bool TryGet(IReadOnlyDictionary<string, string> values, string key, out string value)
     {
