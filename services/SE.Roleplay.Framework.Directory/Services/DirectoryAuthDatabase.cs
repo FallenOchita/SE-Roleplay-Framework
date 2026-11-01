@@ -20,7 +20,7 @@ public sealed class DirectoryAuthDatabase
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
+            System.IO.Directory.CreateDirectory(directory);
 
         _connectionString = new SqliteConnectionStringBuilder
         {
