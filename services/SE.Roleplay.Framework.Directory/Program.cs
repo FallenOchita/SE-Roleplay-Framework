@@ -18,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.Services.AddSingleton<DesktopTokenStore>();
+builder.Services.AddSingleton<DesktopAuthorizationCodeStore>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddHttpClient<SteamOpenIdVerifier>();
 
@@ -68,6 +69,16 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("oauth-token", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
     options.AddPolicy("owner-writes", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             (context.Connection.RemoteIpAddress?.ToString() ?? "unknown") + ":" +
@@ -90,6 +101,40 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
+
+app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
+    DesktopAuthorizationCodeStore authorizationCodes, DesktopTokenStore tokens) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.Headers.Pragma = "no-cache";
+
+    if (request.ClientId != DesktopTokenStore.RegisteredClientId)
+        return Results.BadRequest(new { error = "invalid_grant" });
+    var registeredClientId = DesktopTokenStore.RegisteredClientId;
+
+    DesktopTokenPair? pair = request.GrantType switch
+    {
+        "authorization_code" when
+            !string.IsNullOrWhiteSpace(request.Code) &&
+            !string.IsNullOrWhiteSpace(request.RedirectUri) &&
+            !string.IsNullOrWhiteSpace(request.CodeVerifier)
+                => RedeemAuthorizationCode(),
+        "refresh_token" when !string.IsNullOrWhiteSpace(request.RefreshToken)
+                => tokens.RotateRefreshToken(request.RefreshToken, registeredClientId),
+        _ => null
+    };
+
+    return pair is null
+        ? Results.BadRequest(new { error = "invalid_grant" })
+        : Results.Json(pair);
+    
+    DesktopTokenPair? RedeemAuthorizationCode()
+    {
+        var grant = authorizationCodes.RedeemCode(
+            request.Code!, registeredClientId, request.RedirectUri!, request.CodeVerifier!);
+        return grant is null ? null : tokens.Issue(grant.SteamId64, grant.ClientId);
+    }
+}).RequireRateLimiting("oauth-token");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "SE Roleplay Framework Directory" }));
 app.MapGet("/api/servers", async (ServerDirectoryStore store, CancellationToken cancellationToken) =>
