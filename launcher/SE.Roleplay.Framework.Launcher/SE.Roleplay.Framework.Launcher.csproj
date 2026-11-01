@@ -6,4 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SE.Roleplay.Framework.Core\SE.Roleplay.Framework.Core.csproj" />
+  </ItemGroup>
 </Project>
