@@ -17,6 +17,7 @@ public sealed class DirectoryAuthDatabaseTests
             Assert.Equal(1, await database.GetSchemaVersionAsync());
             var tables = await database.GetTableNamesAsync();
             Assert.Contains("steam_login_states", tables);
+            Assert.Contains("steam_openid_nonces", tables);
             Assert.Contains("desktop_authorization_states", tables);
             Assert.Contains("desktop_authorization_codes", tables);
             Assert.Contains("desktop_token_families", tables);
