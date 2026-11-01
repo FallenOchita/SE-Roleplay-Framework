@@ -187,7 +187,9 @@ public partial class MainWindow : Window
         {
             DirectoryStatusText.Text = "No server directory configured. Add the SE1 community directory HTTPS URL in Settings.";
             _servers.Clear();
+            _visibleServers.Clear();
             _featuredServers.Clear();
+            ApplyServerFilters();
             UpdateHomeEmptyStates();
             return;
         }
@@ -227,7 +229,7 @@ public partial class MainWindow : Window
 
     private void ApplyServerFilters()
     {
-        if (_visibleServers == null || ServerSearchBox == null || ServerStatusFilter == null)
+        if (ServerSearchBox == null || ServerStatusFilter == null || ServerResultsText == null || ServerResultsEmptyText == null)
             return;
 
         var query = ServerSearchBox.Text.Trim();
