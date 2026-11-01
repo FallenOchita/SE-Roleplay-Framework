@@ -76,11 +76,12 @@ public sealed class SteamLoginStateStore
 
     private void PruneExpired(DateTimeOffset now)
     {
-        foreach (var pair in _entries)
-        {
-            if (pair.Value.ExpiresAt <= now)
-                _entries.Remove(pair.Key);
-        }
+        var expiredKeys = _entries
+            .Where(pair => pair.Value.ExpiresAt <= now)
+            .Select(pair => pair.Key)
+            .ToArray();
+        foreach (var key in expiredKeys)
+            _entries.Remove(key);
     }
 
     private static void ValidateBrowserSessionId(string browserSessionId)
