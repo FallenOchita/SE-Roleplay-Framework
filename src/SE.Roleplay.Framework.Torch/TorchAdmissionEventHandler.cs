@@ -15,10 +15,11 @@ namespace SE.Roleplay.Framework.Torch
     /// </summary>
     internal sealed class TorchAdmissionEventHandler : IEventHandler, IDisposable
     {
-        private readonly HttpClient _httpClient;
-        private readonly Uri _decisionUri;
-        private readonly string _apiKey;
+        private readonly HttpClient? _httpClient;
+        private readonly Uri? _decisionUri;
+        private readonly string? _apiKey;
         private readonly IFrameworkLogger _logger;
+        private readonly bool _rejectAll;
 
         public TorchAdmissionEventHandler(
             Uri directoryBaseUri,
@@ -39,9 +40,22 @@ namespace SE.Roleplay.Framework.Torch
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         }
 
+        /// <summary>Creates a fail-closed handler for invalid or incomplete server configuration.</summary>
+        public TorchAdmissionEventHandler(IFrameworkLogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _rejectAll = true;
+        }
+
         [EventHandler]
         public void OnValidateAuthTicket(ref ValidateAuthTicketEvent info)
         {
+            if (_rejectAll)
+            {
+                info.FutureVerdict = Task.FromResult(JoinResult.TicketCanceled);
+                return;
+            }
+
             var previousVerdict = info.FutureVerdict;
             info.FutureVerdict = EvaluateAsync(previousVerdict, info.SteamID);
         }
@@ -57,11 +71,11 @@ namespace SE.Roleplay.Framework.Torch
                 if (defaultVerdict != JoinResult.OK)
                     return defaultVerdict;
 
-                var uri = new Uri(_decisionUri, steamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                var uri = new Uri(_decisionUri!, steamId.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 using (var request = new HttpRequestMessage(HttpMethod.Get, uri))
                 {
-                    request.Headers.TryAddWithoutValidation("X-Server-Api-Key", _apiKey);
-                    using (var response = await _httpClient.SendAsync(request).ConfigureAwait(false))
+                    request.Headers.TryAddWithoutValidation("X-Server-Api-Key", _apiKey!);
+                    using (var response = await _httpClient!.SendAsync(request).ConfigureAwait(false))
                     {
                         if (!response.IsSuccessStatusCode)
                         {
@@ -97,7 +111,7 @@ namespace SE.Roleplay.Framework.Torch
             }
         }
 
-        public void Dispose() => _httpClient.Dispose();
+        public void Dispose() => _httpClient?.Dispose();
 
         private sealed class AdmissionDecisionResponse
         {
