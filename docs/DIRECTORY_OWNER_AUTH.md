@@ -90,7 +90,24 @@ No production owner-registration route should be enabled until the OpenID verifi
 
 - Complete: Steam OpenID assertion verification, browser-bound single-use login state, HTTPS-only login redirect configuration, protected cookie sign-in, and persisted Data Protection keys.
 - In progress: nullable `OwnerSteamId64` persistence and owner-scoped store operations. These operations compare the verified SteamID64 and perform authorization and mutation under the same store gate. Public-feed projections omit owner identity and API-key hashes.
-- Not yet enabled: owner HTTP routes, logout, antiforgery/Origin validation, owner portal, and launcher owner UI. Do not expose owner-management routes until browser CSRF protections, rate limits, request validation, route integration tests, and owner-isolation tests are complete.
+- Implemented in the current branch: authenticated owner HTTP routes, POST logout, ASP.NET Core antiforgery request tokens, exact configured-Origin checks on state-changing requests, owner-write rate limiting, and owner-scoped storage calls. The routes are not production-ready until endpoint-level integration tests and deployment validation pass.
+- Not yet implemented: owner portal and launcher owner UI.
 - Legacy records remain ownerless. No automatic claim or transfer is performed.
 
 The current JSON store remains single-process only. A multi-instance deployment must move ownership and key updates to shared transactional storage with atomic authorization checks.
+
+
+## Owner API route implementation
+
+The owner API is now wired to the verified SteamID64 claim from the protected cookie principal. It never accepts an owner ID from a request body or query string.
+
+- GET `/api/owner/csrf` — authenticated clients receive an antiforgery request token; send it in `X-CSRF-TOKEN`.
+- GET `/api/owner/me` — returns the verified SteamID64.
+- GET `/api/owner/servers` — returns only the signed-in owner's listings.
+- POST `/api/owner/servers` — creates an owned listing and returns its API key once.
+- PUT `/api/owner/servers/{id}` — updates an owned listing.
+- DELETE `/api/owner/servers/{id}` — deletes an owned listing.
+- POST `/api/owner/servers/{id}/rotate-key` — rotates the server key and returns the replacement once.
+- POST `/auth/logout` — signs out and clears the browser-binding cookie.
+
+Every state-changing owner request requires both a single exact `Origin` matching the configured public HTTPS origin and a valid antiforgery token. Owner write routes have a per-IP/per-account fixed-window limit. Missing and non-owned listing IDs return the same 404 result. The owner API is still gated on endpoint integration tests before production use.
