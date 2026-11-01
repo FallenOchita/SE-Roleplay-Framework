@@ -544,7 +544,7 @@ app.MapPost("/api/owner/servers/{serverId}/players/permissions", async Task<IRes
 }).RequireAuthorization().RequireRateLimiting("owner-writes");
 
 app.MapDelete("/api/owner/servers/{serverId}/players/permissions", async Task<IResult> (
-    string serverId, HttpContext context, GrantPlayerPermissionRequest request,
+    string serverId, string steamId64, string permission, HttpContext context,
     PlayerProfileStore profiles, IAntiforgery antiforgery, IConfiguration configuration,
     CancellationToken cancellationToken) =>
 {
@@ -553,7 +553,7 @@ app.MapDelete("/api/owner/servers/{serverId}/players/permissions", async Task<IR
     var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
     if (ownerSteamId is null) return Results.Unauthorized();
     var revoked = await profiles.RevokePermissionAsync(
-        serverId, ownerSteamId, request.SteamId64, request.Permission, cancellationToken);
+        serverId, ownerSteamId, steamId64, permission, cancellationToken);
     return revoked ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization().RequireRateLimiting("owner-writes");
 
