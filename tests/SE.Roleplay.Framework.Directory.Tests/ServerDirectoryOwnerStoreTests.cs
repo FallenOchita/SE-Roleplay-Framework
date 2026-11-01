@@ -72,6 +72,10 @@ public sealed class ServerDirectoryOwnerStoreTests
 
         Assert.Null(server.OwnerSteamId64);
         Assert.Equal(string.Empty, server.ApiKeyHash);
+        var json = JsonSerializer.Serialize(server, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.DoesNotContain(OwnerA, json, StringComparison.Ordinal);
+        Assert.DoesNotContain("apiKeyHash", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ownerSteamId64", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
