@@ -139,3 +139,12 @@ Schema version 5 adds persistent server-scoped allowlist membership. The launche
 All endpoints require the `LauncherBearer` policy. The player's SteamID is taken from the validated token for membership checks. Owner operations derive the owner from the same token and include ownership predicates in their SQL statements. Notes are limited to 200 characters. Membership is independent per server and is removed automatically when its server record is deleted.
 
 This directory API exposes allowlist state; the game-server plugin must still enforce that state during its connection/admission flow. A failed or unavailable directory check must not be treated as permission to join when allowlisting is enabled.
+
+
+### Server-authenticated admission policy
+
+Schema version 6 adds `server_admission_settings`, with allowlist enforcement disabled by default for existing servers. An owner can enable or disable enforcement with `PUT /api/launcher/owner/servers/{serverId}/admission` using `{ "allowlistEnabled": true }`; the endpoint requires the owner's launcher bearer token.
+
+The game server obtains an authoritative decision with `GET /api/servers/{serverId}/admission/{steamId64}` and the server's `X-Server-Api-Key` header. The response includes `allowlistEnabled`, `isAllowed`, and `shouldAdmit`. An invalid server key and an unknown server both return `401`.
+
+The endpoint is designed for the dedicated server's pre-admission hook, not a post-join notification. A host adapter must call it before admitting a player, use the server-observed SteamID64, and deny admission when enforcement is enabled and the response denies the player. If the directory cannot be reached while enforcement is enabled, the host adapter must fail closed. The current Torch adapter only exposes a post-join callback in its existing integration; this API alone does not yet block a connection. A host-specific pre-join hook is still required before advertising full in-game enforcement.
