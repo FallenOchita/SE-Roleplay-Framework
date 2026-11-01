@@ -7,14 +7,14 @@ namespace SE.Roleplay.Framework.Directory.Tests;
 public sealed class DirectoryAuthDatabaseTests
 {
     [Fact]
-    public async Task Initialize_CreatesVersionOneAuthenticationSchema()
+    public async Task Initialize_CreatesVersionTwoAuthenticationSchema()
     {
         var path = CreateDatabasePath();
         try
         {
             var database = CreateDatabase(path);
             await database.InitializeAsync();
-            Assert.Equal(1, await database.GetSchemaVersionAsync());
+            Assert.Equal(2, await database.GetSchemaVersionAsync());
             var tables = await database.GetTableNamesAsync();
             Assert.Contains("steam_login_states", tables);
             Assert.Contains("steam_openid_nonces", tables);
@@ -37,8 +37,8 @@ public sealed class DirectoryAuthDatabaseTests
             var second = CreateDatabase(path);
             await first.InitializeAsync();
             await second.InitializeAsync();
-            Assert.Equal(1, await first.GetSchemaVersionAsync());
-            Assert.Equal(1, await second.GetSchemaVersionAsync());
+            Assert.Equal(2, await first.GetSchemaVersionAsync());
+            Assert.Equal(2, await second.GetSchemaVersionAsync());
         }
         finally { DeleteDatabase(path); }
     }
