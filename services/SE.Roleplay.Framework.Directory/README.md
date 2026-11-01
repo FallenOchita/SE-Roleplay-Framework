@@ -77,13 +77,13 @@ The browser-binding cookie is `Secure`, `HttpOnly`, `SameSite=Lax`, and uses the
 
 When deployed behind a reverse proxy, configure forwarding only for explicitly trusted proxy addresses/networks and ensure the public endpoint enforces HTTPS. Do not trust arbitrary forwarded headers. Keep the public URL stable and identical to the HTTPS origin used for Steam callbacks.
 
-This milestone establishes sign-in only. It does not add owner registration, listing-management routes, logout, or an owner UI. The existing bootstrap-admin routes remain separate and must not be exposed through launcher configuration. The Steam login state store is shared through SQLite, but the desktop authorization-state/code stores and token store are still process-local pending their follow-up migrations. The Steam OpenID nonce replay cache is also process-local.
+This milestone establishes sign-in only. It does not add owner registration, listing-management routes, logout, or an owner UI. The existing bootstrap-admin routes remain separate and must not be exposed through launcher configuration. The Steam login state store and desktop OAuth authorization-state/code store are shared through SQLite. The Steam OpenID nonce replay cache and launcher token store are still process-local.
 
 
 ## Shared authentication database foundation
 
 The service now initializes a SQLite database at startup. Configure its location with `SERPF_DIRECTORY_AUTH_DB_PATH` or `Directory:AuthDatabasePath`; the default is `data/directory-auth.db` under the application base directory. The database uses WAL journaling, full synchronous durability, foreign-key enforcement, and a 10-second busy timeout.
 
-Schema version 1 reserves tables for Steam login states, desktop authorization states and codes, token families, access tokens, and refresh tokens. Token and state tables are designed to store hashes rather than raw bearer credentials or browser-session secrets. Expiry and family indexes support cleanup and revocation operations.
+Schema version 1 includes tables for Steam login states, desktop authorization states and codes, token families, access tokens, and refresh tokens. OAuth state, browser-session, and authorization-code values are stored only as SHA-256 hashes; expiry indexes support cleanup.
 
-**Important:** the SQLite schema is now used by the Steam login state store. Desktop authorization-state/code storage and launcher token storage remain process-local until their follow-up migrations are complete. The Steam OpenID nonce replay cache and server directory JSON store also remain single-instance. Do not treat the entire directory service as safe for multi-instance deployment yet.
+**Important:** SQLite now backs Steam login states and desktop OAuth authorization states/codes. The launcher access/refresh token store and Steam OpenID nonce replay cache remain process-local, and the server directory JSON store remains single-instance. The directory service is not yet safe for multi-instance deployment.
