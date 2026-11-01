@@ -120,7 +120,7 @@ public sealed class ServerDirectoryStore
     private async Task WriteUnsafeAsync(List<DirectoryServer> servers, CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+        if (!string.IsNullOrEmpty(directory)) System.IO.Directory.CreateDirectory(directory);
         var tempPath = _filePath + ".tmp";
         await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
         {
