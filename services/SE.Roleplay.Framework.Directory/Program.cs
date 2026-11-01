@@ -110,6 +110,7 @@ app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
 
     if (request.ClientId != DesktopTokenStore.RegisteredClientId)
         return Results.BadRequest(new { error = "invalid_grant" });
+    var registeredClientId = DesktopTokenStore.RegisteredClientId;
 
     DesktopTokenPair? pair = request.GrantType switch
     {
@@ -119,7 +120,7 @@ app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
             !string.IsNullOrWhiteSpace(request.CodeVerifier)
                 => RedeemAuthorizationCode(),
         "refresh_token" when !string.IsNullOrWhiteSpace(request.RefreshToken)
-                => tokens.RotateRefreshToken(request.RefreshToken, request.ClientId),
+                => tokens.RotateRefreshToken(request.RefreshToken, registeredClientId),
         _ => null
     };
 
@@ -130,7 +131,7 @@ app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
     DesktopTokenPair? RedeemAuthorizationCode()
     {
         var grant = authorizationCodes.RedeemCode(
-            request.Code!, request.ClientId!, request.RedirectUri!, request.CodeVerifier!);
+            request.Code!, registeredClientId, request.RedirectUri!, request.CodeVerifier!);
         return grant is null ? null : tokens.Issue(grant.SteamId64, grant.ClientId);
     }
 }).RequireRateLimiting("oauth-token");
