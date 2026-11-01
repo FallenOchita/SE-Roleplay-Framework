@@ -148,7 +148,7 @@ app.MapGet("/oauth/authorize", (HttpContext context,
     var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
     if (steamId is null)
     {
-        var returnTo = context.Request.Path + context.Request.QueryString;
+        var returnTo = context.Request.Path.ToUriComponent() + context.Request.QueryString.ToUriComponent();
         return Results.Redirect("/auth/steam/login?returnTo=" +
             Uri.EscapeDataString(returnTo));
     }
@@ -282,7 +282,7 @@ app.MapGet("/auth/steam/login", (HttpContext context, SteamLoginStateStore state
         return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Steam sign-in is not configured.");
 
     var requestedReturnTo = context.Request.Query["returnTo"].ToString();
-    var safeReturnTo = requestedReturnTo.Length > 0 &&
+    var safeReturnTo = requestedReturnTo.Length is > 0 and <= 4096 &&
         requestedReturnTo.StartsWith("/oauth/authorize?", StringComparison.Ordinal) &&
         !requestedReturnTo.StartsWith("//", StringComparison.Ordinal) &&
         !requestedReturnTo.Contains('\\') && !requestedReturnTo.Any(char.IsControl)
