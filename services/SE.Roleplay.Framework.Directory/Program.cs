@@ -174,7 +174,8 @@ static Uri? GetPublicBaseUrl(IConfiguration configuration)
     if (!Uri.TryCreate(configured, UriKind.Absolute, out var uri) ||
         uri.Scheme != Uri.UriSchemeHttps ||
         !string.IsNullOrEmpty(uri.Query) ||
-        !string.IsNullOrEmpty(uri.Fragment))
+        !string.IsNullOrEmpty(uri.Fragment) ||
+        uri.AbsolutePath != "/")
         return null;
     return new Uri(uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/') + "/");
 }
