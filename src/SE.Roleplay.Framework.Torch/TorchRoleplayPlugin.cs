@@ -10,6 +10,7 @@ using SE.Roleplay.Framework.Core.Events;
 using SE.Roleplay.Framework.Core.Identity;
 using SE.Roleplay.Framework.Core.Permissions;
 using SE.Roleplay.Framework.Core.Persistence;
+using SE.Roleplay.Framework.Torch.Commands;
 using Torch;
 using Torch.API;
 using Torch.API.Managers;
@@ -64,6 +65,7 @@ namespace SE.Roleplay.Framework.Torch
                 store,
                 options,
                 new TorchFrameworkLogger());
+            CharacterCommandModule.Framework = _context;
 
             _sessionManager = torch.Managers.GetManager<ITorchSessionManager>();
             if (_sessionManager == null)
@@ -234,6 +236,7 @@ namespace SE.Roleplay.Framework.Torch
                 _context?.Logger.Error("An error occurred while flushing player data during plugin shutdown.", exception);
             }
 
+            CharacterCommandModule.Framework = null;
             _context?.Logger.Info("Torch adapter stopped.");
             base.Dispose();
         }
