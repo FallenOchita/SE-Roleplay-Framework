@@ -30,7 +30,7 @@ public sealed class SteamOpenIdVerifier
     private readonly DirectoryAuthDatabase? _database;
 
     public SteamOpenIdVerifier(HttpClient httpClient, TimeProvider? timeProvider = null)
-        : this(httpClient, null, timeProvider, true) { }
+        : this(httpClient, null, timeProvider, false) { }
 
     public SteamOpenIdVerifier(
         HttpClient httpClient, DirectoryAuthDatabase database, TimeProvider? timeProvider = null)
@@ -40,7 +40,7 @@ public sealed class SteamOpenIdVerifier
         HttpClient httpClient, DirectoryAuthDatabase? database, TimeProvider? timeProvider, bool useDatabase)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _database = database;
+        _database = useDatabase ? database : null;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
