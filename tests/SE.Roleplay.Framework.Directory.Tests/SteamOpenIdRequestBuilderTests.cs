@@ -22,6 +22,8 @@ public sealed class SteamOpenIdRequestBuilderTests
     [InlineData("http://directory.example/callback", "https://directory.example")]
     [InlineData("https://directory.example/callback", "http://directory.example")]
     [InlineData("https://directory.example/callback", "https://directory.example/?unsafe=query")]
+    [InlineData("https://directory.example/callback", "https://directory.example/subpath/")]
+    [InlineData("https://other.example/callback", "https://directory.example/")]
     public void Build_RejectsNonHttpsOrNonCanonicalConfiguration(string returnTo, string realm)
     {
         Assert.Throws<ArgumentException>(() => SteamOpenIdRequestBuilder.Build(returnTo, realm));
