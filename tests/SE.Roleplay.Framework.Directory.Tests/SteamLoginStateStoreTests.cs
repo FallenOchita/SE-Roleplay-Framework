@@ -62,7 +62,7 @@ public sealed class SteamLoginStateStoreTests
         var results = await Task.WhenAll(Enumerable.Range(0, 20)
             .Select(_ => Task.Run(() => store.TryConsume(state, BrowserA))));
 
-        Assert.Single(results.Where(result => result));
+        Assert.True(Assert.Single(results, result => result));
     }
 
     [Theory]
