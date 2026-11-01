@@ -18,6 +18,7 @@ const string SteamLoginPolicy = "steam-login";
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
 builder.Services.AddSingleton<PlayerProfileStore>();
+builder.Services.AddSingleton<ServerMembershipStore>();
 builder.Services.AddSingleton<DirectoryAuthDatabase>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.Services.AddSingleton<DesktopTokenStore>();
@@ -616,6 +617,49 @@ app.MapPost("/api/launcher/owner/servers/{id}/rotate-key", async Task<IResult> (
         apiKey,
         message = "Store this API key securely. It is returned only once."
     });
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
+// Server allowlist membership is keyed only by the Steam identity in the validated launcher token.
+app.MapGet("/api/servers/{serverId}/membership/me", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var status = await memberships.GetStatusAsync(serverId, steamId, cancellationToken);
+    return Results.Ok(status);
+}).RequireAuthorization("LauncherBearer");
+
+app.MapGet("/api/launcher/owner/servers/{serverId}/members", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    var members = await memberships.GetMembersAsync(serverId, ownerSteamId, cancellationToken);
+    return Results.Ok(new { serverId, members });
+}).RequireAuthorization("LauncherBearer");
+
+app.MapPost("/api/launcher/owner/servers/{serverId}/members", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, AddServerMemberRequest request,
+    ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    if (!PlayerProfileStore.IsValidSteamId64(request.SteamId64) || request.Note is { Length: > 200 })
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["member"] = new[] { "A valid SteamID64 and a note of 200 characters or fewer are required." } });
+    var added = await memberships.AddMemberAsync(
+        serverId, ownerSteamId, request.SteamId64, request.Note, cancellationToken);
+    return added ? Results.Ok(new { added = true }) : Results.NotFound();
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
+app.MapDelete("/api/launcher/owner/servers/{serverId}/members/{steamId64}", async Task<IResult> (
+    string serverId, string steamId64, ClaimsPrincipal user, ServerMembershipStore memberships,
+    CancellationToken cancellationToken) =>
+{
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    return await memberships.RemoveMemberAsync(serverId, ownerSteamId, steamId64, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
 
 app.Run();
