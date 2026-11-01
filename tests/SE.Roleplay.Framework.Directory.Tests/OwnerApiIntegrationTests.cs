@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Encodings.Web;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
+using SE.Roleplay.Framework.Directory.Services;
 
 namespace SE.Roleplay.Framework.Directory.Tests;
 
@@ -22,6 +24,68 @@ public sealed class OwnerApiIntegrationTests
     private const string OwnerA = "76561198012345678";
     private const string OwnerB = "76561198087654321";
     private const string Origin = "https://directory.test";
+
+    [Fact]
+    public async Task LauncherBearerOwnerApi_EnforcesOwnershipAcrossCrudAndKeyRotation()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var ownerA = factory.CreateBearerOwnerClient(OwnerA);
+        using var ownerB = factory.CreateBearerOwnerClient(OwnerB);
+
+        using var createResponse = await ownerA.PostAsJsonAsync(
+            "/api/launcher/owner/servers", Registration("Bearer-owned server"));
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var id = created.RootElement.GetProperty("id").GetString()!;
+        var firstKey = created.RootElement.GetProperty("apiKey").GetString()!;
+
+        var ownerBList = await ownerB.GetAsync("/api/launcher/owner/servers");
+        ownerBList.EnsureSuccessStatusCode();
+        using var ownerBJson = JsonDocument.Parse(await ownerBList.Content.ReadAsStringAsync());
+        Assert.Empty(ownerBJson.RootElement.GetProperty("servers").EnumerateArray());
+
+        using var rejectedUpdate = await ownerB.PutAsJsonAsync(
+            $"/api/launcher/owner/servers/{id}", Registration("Unauthorized update"));
+        using var rejectedDelete = await ownerB.DeleteAsync($"/api/launcher/owner/servers/{id}");
+        using var rejectedRotate = await ownerB.PostAsync($"/api/launcher/owner/servers/{id}/rotate-key", null);
+        Assert.Equal(HttpStatusCode.NotFound, rejectedUpdate.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, rejectedDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, rejectedRotate.StatusCode);
+
+        using var update = await ownerA.PutAsJsonAsync(
+            $"/api/launcher/owner/servers/{id}", Registration("Updated by launcher"));
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        using var rotate = await ownerA.PostAsync($"/api/launcher/owner/servers/{id}/rotate-key", null);
+        Assert.Equal(HttpStatusCode.OK, rotate.StatusCode);
+        using var rotated = JsonDocument.Parse(await rotate.Content.ReadAsStringAsync());
+        var secondKey = rotated.RootElement.GetProperty("apiKey").GetString()!;
+        Assert.NotEqual(firstKey, secondKey);
+
+        using var list = await ownerA.GetAsync("/api/launcher/owner/servers");
+        list.EnsureSuccessStatusCode();
+        var listText = await list.Content.ReadAsStringAsync();
+        Assert.Contains("Updated by launcher", listText, StringComparison.Ordinal);
+        Assert.DoesNotContain(firstKey, listText, StringComparison.Ordinal);
+        Assert.DoesNotContain(secondKey, listText, StringComparison.Ordinal);
+
+        using var delete = await ownerA.DeleteAsync($"/api/launcher/owner/servers/{id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+    }
+
+    [Fact]
+    public async Task LauncherBearerOwnerApi_RejectsMissingBearerToken()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/api/launcher/owner/servers");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
     [Fact]
     public async Task OwnerApi_RequiresAuthentication()
@@ -441,6 +505,20 @@ public sealed class OwnerApiIntegrationTests
                 HandleCookies = true
             });
             client.DefaultRequestHeaders.Add("X-Test-Steam-Id", steamId);
+            return client;
+        }
+
+        public HttpClient CreateBearerOwnerClient(string steamId)
+        {
+            var pair = Services.GetRequiredService<DesktopTokenStore>().Issue(
+                steamId, DesktopTokenStore.RegisteredClientId)
+                ?? throw new InvalidOperationException("Could not issue test launcher token.");
+            var client = CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri(Origin),
+                AllowAutoRedirect = false
+            });
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", pair.AccessToken);
             return client;
         }
 
