@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
@@ -88,6 +89,16 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+    options.AddPolicy("oauth-authorize", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
     options.AddPolicy("owner-writes", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             (context.Connection.RemoteIpAddress?.ToString() ?? "unknown") + ":" +
@@ -110,6 +121,112 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
+
+app.MapGet("/oauth/authorize", (HttpContext context,
+    DesktopAuthorizationCodeStore authorizationCodes, IAntiforgery antiforgery) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.Headers.Pragma = "no-cache";
+
+    var query = context.Request.Query;
+    var clientId = query["client_id"].ToString();
+    var redirectUri = query["redirect_uri"].ToString();
+    var challenge = query["code_challenge"].ToString();
+    var challengeMethod = query["code_challenge_method"].ToString();
+    var launcherState = query["state"].ToString();
+
+    if (query["response_type"] != "code" ||
+        clientId != DesktopTokenStore.RegisteredClientId ||
+        !DesktopAuthorizationCodeStore.IsLoopbackRedirect(redirectUri) ||
+        challengeMethod != "S256" ||
+        challenge.Length != 43 ||
+        challenge.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) ||
+        launcherState.Length is < 1 or > 256 ||
+        launcherState.Any(char.IsControl))
+        return Results.BadRequest("Invalid authorization request.");
+
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (steamId is null)
+    {
+        var returnTo = context.Request.Path + context.Request.QueryString;
+        return Results.Redirect("/auth/steam/login?returnTo=" +
+            Uri.EscapeDataString(returnTo));
+    }
+
+    var browserSession = context.Request.Cookies[BrowserCookieName];
+    if (!IsBrowserSessionId(browserSession))
+        return Results.BadRequest("A valid browser session is required. Restart Steam sign-in and retry.");
+
+    var pendingState = authorizationCodes.CreateState(
+        clientId, redirectUri, challenge, browserSession!, launcherState);
+    var tokens = antiforgery.GetAndStoreTokens(context);
+    var encodedState = HtmlEncoder.Default.Encode(pendingState);
+    var encodedToken = HtmlEncoder.Default.Encode(tokens.RequestToken ?? string.Empty);
+    var html = $"""
+        <!doctype html>
+        <html lang="en">
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Authorize SE Roleplay Framework</title></head>
+        <body>
+          <main>
+            <h1>Authorize SE Roleplay Framework Launcher</h1>
+            <p>The launcher is requesting permission to sign in as your Steam account.</p>
+            <p>Steam identity: {HtmlEncoder.Default.Encode(steamId)}</p>
+            <form method="post" action="/oauth/authorize/decision">
+              <input type="hidden" name="state" value="{encodedState}">
+              <input type="hidden" name="__RequestVerificationToken" value="{encodedToken}">
+              <button type="submit" name="decision" value="approve">Approve</button>
+              <button type="submit" name="decision" value="deny">Deny</button>
+            </form>
+          </main>
+        </body>
+        </html>
+        """;
+    return Results.Content(html, "text/html; charset=utf-8");
+}).RequireRateLimiting("oauth-authorize");
+
+app.MapPost("/oauth/authorize/decision", async (HttpContext context,
+    DesktopAuthorizationCodeStore authorizationCodes, IAntiforgery antiforgery,
+    IConfiguration configuration) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    context.Response.Headers.Pragma = "no-cache";
+
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(
+        context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest("A valid same-origin request and antiforgery token are required.");
+
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    var browserSession = context.Request.Cookies[BrowserCookieName];
+    if (steamId is null || !IsBrowserSessionId(browserSession))
+        return Results.Unauthorized();
+
+    var form = await context.Request.ReadFormAsync();
+    var state = form["state"].ToString();
+    var decision = form["decision"].ToString();
+    if (state.Length is < 1 or > 128 || state.Any(char.IsControl))
+        return Results.BadRequest("Invalid authorization transaction.");
+
+    if (decision == "deny")
+    {
+        var denied = authorizationCodes.DenyAuthorization(state, browserSession!);
+        if (denied is null)
+            return Results.BadRequest("Authorization request expired or was already used.");
+        var denialUri = denied.RedirectUri + "?error=access_denied&state=" +
+            Uri.EscapeDataString(denied.ClientState ?? string.Empty);
+        return Results.Redirect(denialUri);
+    }
+
+    if (decision != "approve")
+        return Results.BadRequest("Invalid authorization decision.");
+
+    var approved = authorizationCodes.CompleteAuthorization(state, browserSession!, steamId);
+    if (approved is null)
+        return Results.BadRequest("Authorization request expired or was already used.");
+    var callbackUri = approved.RedirectUri + "?code=" + Uri.EscapeDataString(approved.Code) +
+        "&state=" + Uri.EscapeDataString(approved.ClientState ?? string.Empty);
+    return Results.Redirect(callbackUri);
+}).RequireAuthorization().RequireRateLimiting("oauth-authorize");
 
 app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
     DesktopAuthorizationCodeStore authorizationCodes, DesktopTokenStore tokens) =>
@@ -164,13 +281,21 @@ app.MapGet("/auth/steam/login", (HttpContext context, SteamLoginStateStore state
     if (publicBaseUrl is null)
         return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Steam sign-in is not configured.");
 
+    var requestedReturnTo = context.Request.Query["returnTo"].ToString();
+    var safeReturnTo = requestedReturnTo.Length > 0 &&
+        requestedReturnTo.StartsWith("/oauth/authorize?", StringComparison.Ordinal) &&
+        !requestedReturnTo.StartsWith("//", StringComparison.Ordinal) &&
+        !requestedReturnTo.Contains('\\') && !requestedReturnTo.Any(char.IsControl)
+            ? requestedReturnTo : null;
+
     var browserSessionId = context.Request.Cookies[BrowserCookieName];
     if (!IsBrowserSessionId(browserSessionId))
         browserSessionId = CreateBrowserSessionId();
 
     context.Response.Cookies.Append(BrowserCookieName, browserSessionId!, BrowserCookieOptions());
     var callback = new Uri(publicBaseUrl, "/auth/steam/callback");
-    var returnTo = callback.AbsoluteUri + "?state=" + Uri.EscapeDataString(stateStore.Create(browserSessionId!));
+    var returnTo = callback.AbsoluteUri + "?state=" +
+        Uri.EscapeDataString(stateStore.Create(browserSessionId!, safeReturnTo));
     var redirect = SteamOpenIdRequestBuilder.Build(returnTo, publicBaseUrl.AbsoluteUri);
     return Results.Redirect(redirect.AbsoluteUri);
 }).RequireRateLimiting(SteamLoginPolicy);
@@ -190,7 +315,7 @@ app.MapGet("/auth/steam/callback", async Task<IResult> (
     var browserSessionId = context.Request.Cookies[BrowserCookieName];
     if (stateValues.Count != 1 || string.IsNullOrWhiteSpace(stateValues[0]) ||
         !IsBrowserSessionId(browserSessionId) ||
-        !stateStore.TryConsume(stateValues[0]!, browserSessionId!))
+        !stateStore.TryConsume(stateValues[0]!, browserSessionId!, out var loginReturnPath))
         return Results.Unauthorized();
 
     var assertion = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -218,7 +343,7 @@ app.MapGet("/auth/steam/callback", async Task<IResult> (
 
     // Rotate the transient state-binding cookie after authentication.
     context.Response.Cookies.Append(BrowserCookieName, CreateBrowserSessionId(), BrowserCookieOptions());
-    return Results.Redirect("/");
+    return Results.Redirect(loginReturnPath ?? "/");
 }).RequireRateLimiting(SteamLoginPolicy);
 
 app.MapPost("/api/admin/servers", async Task<IResult> (HttpContext context, RegisterServerRequest request, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
