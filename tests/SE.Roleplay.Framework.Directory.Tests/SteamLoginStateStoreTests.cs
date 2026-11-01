@@ -66,10 +66,10 @@ public sealed class SteamLoginStateStoreTests
     }
 
     [Theory]
-    [InlineData("", BrowserA)]
-    [InlineData("short", BrowserA)]
-    [InlineData(null, BrowserA)]
-    public void Create_RejectsInvalidBrowserSessionId(string? sessionId, string validSession)
+    [InlineData("")]
+    [InlineData("short")]
+    [InlineData(null)]
+    public void Create_RejectsInvalidBrowserSessionId(string? sessionId)
     {
         var store = new SteamLoginStateStore();
 
