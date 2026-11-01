@@ -39,14 +39,20 @@ public sealed class ServerDirectoryStore
 
         await using var connection = _database.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction();
 
-        await using (var check = connection.CreateCommand())
+        // Claim the one-time import before reading or inserting rows. The unique source key
+        // serializes competing service instances; the claim and imported rows commit together.
+        await using (var claim = connection.CreateCommand())
         {
-            check.Transaction = transaction;
-            check.CommandText = "SELECT 1 FROM directory_server_imports WHERE source_path = $path LIMIT 1;";
-            check.Parameters.AddWithValue("$path", _legacyFilePath);
-            if (await check.ExecuteScalarAsync(cancellationToken) is not null)
+            claim.Transaction = transaction;
+            claim.CommandText = """
+                INSERT OR IGNORE INTO directory_server_imports (source_path, imported_at_utc)
+                VALUES ($path, $now);
+                """;
+            claim.Parameters.AddWithValue("$path", _legacyFilePath);
+            claim.Parameters.AddWithValue("$now", FormatTimestamp(DateTime.UtcNow));
+            if (await claim.ExecuteNonQueryAsync(cancellationToken) == 0)
             {
                 await transaction.CommitAsync(cancellationToken);
                 return;
@@ -55,18 +61,6 @@ public sealed class ServerDirectoryStore
 
         foreach (var server in legacyServers)
             await InsertServerAsync(connection, transaction, server, ignoreDuplicate: true, cancellationToken);
-
-        await using (var mark = connection.CreateCommand())
-        {
-            mark.Transaction = transaction;
-            mark.CommandText = """
-                INSERT INTO directory_server_imports (source_path, imported_at_utc)
-                VALUES ($path, $now);
-                """;
-            mark.Parameters.AddWithValue("$path", _legacyFilePath);
-            mark.Parameters.AddWithValue("$now", FormatTimestamp(DateTime.UtcNow));
-            await mark.ExecuteNonQueryAsync(cancellationToken);
-        }
 
         await transaction.CommitAsync(cancellationToken);
     }
@@ -157,7 +151,7 @@ public sealed class ServerDirectoryStore
     {
         await using var connection = _database.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var transaction = connection.BeginTransaction();
 
         DirectoryServer? server;
         await using (var select = connection.CreateCommand())
@@ -225,7 +219,6 @@ public sealed class ServerDirectoryStore
 
         await using var connection = _database.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
         await InsertServerAsync(connection, null, server, ignoreDuplicate: false, cancellationToken);
         return (server, apiKey);
     }
