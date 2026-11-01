@@ -138,7 +138,7 @@ public sealed class SteamOpenIdVerifierTests
         new(new HttpClient(new StubHttpMessageHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("ns:http://specs.openid.net/auth/2.0\\nis_valid:true\\n")
+                Content = new StringContent("ns:http://specs.openid.net/auth/2.0\nis_valid:true\n")
             }))), database);
 
     private static async Task<DirectoryAuthDatabase> CreateDatabaseAsync()
