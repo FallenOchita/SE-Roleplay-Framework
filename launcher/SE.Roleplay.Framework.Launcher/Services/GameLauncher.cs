@@ -16,15 +16,23 @@ public sealed class GameLauncher
 
     public void JoinServer(string address, int port)
     {
+        var host = address.Trim();
+        if (!IPAddress.TryParse(host, out _) && host.Contains(':') &&
+            Uri.TryCreate("tcp://" + host, UriKind.Absolute, out var endpointWithPort) &&
+            endpointWithPort.Port > 0)
+        {
+            if (port == 0) port = endpointWithPort.Port;
+            host = endpointWithPort.Host;
+        }
+
         if (port is < 1 or > 65535)
             throw new ArgumentOutOfRangeException(nameof(port), "The server must provide a valid connection port.");
 
-        var host = address.Trim();
         if (IPAddress.TryParse(host, out var ip))
         {
             if (ip.AddressFamily == AddressFamily.InterNetworkV6) host = $"[{ip}]";
         }
-        else if (!Uri.CheckHostName(host).Equals(UriHostNameType.Dns) ||
+        else if (Uri.CheckHostName(host) != UriHostNameType.Dns ||
                  host.Length > 253 || host.Contains('/') || host.Contains('\\') || host.Contains(':'))
         {
             throw new InvalidOperationException("This server has an invalid address.");
