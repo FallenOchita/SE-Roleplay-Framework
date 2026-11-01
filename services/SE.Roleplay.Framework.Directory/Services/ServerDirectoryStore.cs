@@ -39,7 +39,7 @@ public sealed class ServerDirectoryStore
 
         await using var connection = _database.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = connection.BeginTransaction();
+        await using var transaction = connection.BeginTransaction(deferred: false);
 
         // Claim the one-time import before reading or inserting rows. The unique source key
         // serializes competing service instances; the claim and imported rows commit together.
@@ -151,7 +151,7 @@ public sealed class ServerDirectoryStore
     {
         await using var connection = _database.CreateConnection();
         await connection.OpenAsync(cancellationToken);
-        await using var transaction = connection.BeginTransaction();
+        await using var transaction = connection.BeginTransaction(deferred: false);
 
         DirectoryServer? server;
         await using (var select = connection.CreateCommand())
