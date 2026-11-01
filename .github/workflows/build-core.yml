@@ -23,3 +23,5 @@ jobs:
         run: dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
       - name: Run core tests
         run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --verbosity normal
+      - name: Build server directory API
+        run: dotnet build services/SE.Roleplay.Framework.Directory/SE.Roleplay.Framework.Directory.csproj --configuration Release
