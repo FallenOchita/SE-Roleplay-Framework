@@ -38,4 +38,47 @@ public sealed class JsonPlayerDataStoreTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+
+    [Fact]
+    public async Task SameSteamAccountHasIndependentCharactersOnDifferentServers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "SE-RP-Server-Isolation-" + Guid.NewGuid().ToString("N"));
+        var serverA = Path.Combine(root, "ServerA", "Storage", "SE-Roleplay-Framework", "Players");
+        var serverB = Path.Combine(root, "ServerB", "Storage", "SE-Roleplay-Framework", "Players");
+        const ulong accountId = 76561198000000004UL;
+
+        try
+        {
+            var storeA = new JsonPlayerDataStore(serverA);
+            var storeB = new JsonPlayerDataStore(serverB);
+            await storeA.SaveAsync(new PlayerRecord
+            {
+                PlatformId = accountId,
+                LastKnownName = "SharedSteamAccount",
+                Characters = new List<PlayerCharacter>
+                {
+                    new PlayerCharacter { Name = "Server A Character" }
+                }
+            });
+            await storeB.SaveAsync(new PlayerRecord
+            {
+                PlatformId = accountId,
+                LastKnownName = "SharedSteamAccount",
+                Characters = new List<PlayerCharacter>
+                {
+                    new PlayerCharacter { Name = "Server B Character" }
+                }
+            });
+
+            var profileA = await storeA.LoadAsync(accountId);
+            var profileB = await storeB.LoadAsync(accountId);
+
+            Assert.Equal("Server A Character", Assert.Single(profileA!.Characters).Name);
+            Assert.Equal("Server B Character", Assert.Single(profileB!.Characters).Name);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
 }
