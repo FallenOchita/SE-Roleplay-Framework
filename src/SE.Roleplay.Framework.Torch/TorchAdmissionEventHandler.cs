@@ -47,7 +47,7 @@ namespace SE.Roleplay.Framework.Torch
             _rejectAll = true;
         }
 
-        [EventHandler]
+        [EventHandler(Priority = int.MaxValue)]
         public void OnValidateAuthTicket(ref ValidateAuthTicketEvent info)
         {
             if (_rejectAll)
