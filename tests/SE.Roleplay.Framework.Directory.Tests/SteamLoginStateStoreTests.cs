@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using SE.Roleplay.Framework.Directory.Services;
 using Xunit;
 
@@ -7,6 +8,47 @@ public sealed class SteamLoginStateStoreTests
 {
     private const string BrowserA = "browser-session-id-that-is-at-least-32-chars-A";
     private const string BrowserB = "browser-session-id-that-is-at-least-32-chars-B";
+
+    [Fact]
+    public async Task SqliteStore_SharesAndAtomicallyConsumesStateAcrossInstances()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var first = new SteamLoginStateStore(database);
+            var second = new SteamLoginStateStore(database);
+            var state = first.Create(BrowserA, "/oauth/authorize?client_id=serpf-windows-launcher");
+
+            Assert.False(second.TryConsume(state, BrowserB));
+            Assert.True(second.TryConsume(state, BrowserA, out var returnPath));
+            Assert.Equal("/oauth/authorize?client_id=serpf-windows-launcher", returnPath);
+            Assert.False(first.TryConsume(state, BrowserA));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteStore_OnlyOneInstanceCanConsumeStateConcurrently()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var stores = Enumerable.Range(0, 8)
+                .Select(_ => new SteamLoginStateStore(database))
+                .ToArray();
+            var state = stores[0].Create(BrowserA);
+
+            var results = await Task.WhenAll(stores.Select(store =>
+                Task.Run(() => store.TryConsume(state, BrowserA))));
+
+            Assert.Single(results, result => result);
+        }
+        finally { DeleteDatabase(path); }
+    }
 
     [Fact]
     public void Create_ReturnsCryptographicallySizedUrlSafeState()
@@ -96,6 +138,27 @@ public sealed class SteamLoginStateStoreTests
     {
         var store = new SteamLoginStateStore();
         Assert.Throws<ArgumentException>(() => store.Create(BrowserA, returnPath));
+    }
+
+    private static DirectoryAuthDatabase CreateDatabase(string path)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Directory:AuthDatabasePath"] = path
+            })
+            .Build();
+        return new DirectoryAuthDatabase(configuration);
+    }
+
+    private static string CreateDatabasePath() =>
+        Path.Combine(Path.GetTempPath(), "serpf-login-state-tests", Guid.NewGuid().ToString("N"), "auth.db");
+
+    private static void DeleteDatabase(string path)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        if (System.IO.Directory.Exists(directory))
+            System.IO.Directory.Delete(directory, recursive: true);
     }
 
     private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
