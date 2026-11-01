@@ -5,85 +5,253 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using SE.Roleplay.Framework.Launcher.Models;
 using SE.Roleplay.Framework.Launcher.Services;
+
 namespace SE.Roleplay.Framework.Launcher;
+
 public partial class MainWindow : Window
 {
     private readonly GameLauncher _gameLauncher = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly GameInstallDetector _gameDetector = new();
     private readonly ServerDirectoryClient _directoryClient = new();
+    private readonly SteamOpenIdService _steamSignIn = new();
     private readonly ObservableCollection<ServerListing> _servers = new();
+    private readonly ObservableCollection<ServerListing> _featuredServers = new();
+    private readonly ObservableCollection<ServerListing> _recentServers = new();
     private LauncherSettings _settings = new();
+
     public MainWindow()
     {
         InitializeComponent();
         ServerList.ItemsSource = _servers;
-        ShowPage(HomePage, "WELCOME BACK", "Roleplay hub", HomeNav);
+        HomeServerList.ItemsSource = _featuredServers;
+        RecentServerList.ItemsSource = _recentServers;
+        ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
     }
+
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        _settings = await _settingsStore.LoadAsync();
-        DirectoryUrlBox.Text = _settings.ServerDirectoryUrl;
-        GamePathBox.Text = _settings.GameExecutablePath;
-        if (string.IsNullOrWhiteSpace(GamePathBox.Text) || !File.Exists(GamePathBox.Text))
+        try
         {
-            var detected = _gameDetector.FindGameExecutable();
-            if (detected is not null) GamePathBox.Text = detected;
+            _settings = await _settingsStore.LoadAsync();
+            DirectoryUrlBox.Text = _settings.ServerDirectoryUrl;
+            GamePathBox.Text = _settings.GameExecutablePath;
+            if (string.IsNullOrWhiteSpace(GamePathBox.Text) || !File.Exists(GamePathBox.Text))
+            {
+                var detected = _gameDetector.FindGameExecutable();
+                if (detected is not null) GamePathBox.Text = detected;
+            }
+
+            _settings.RecentlyLaunchedServers ??= new List<ServerListing>();
+            foreach (var server in _settings.RecentlyLaunchedServers.Take(10))
+                _recentServers.Add(server);
+
+            UpdateSteamStatus();
+            UpdateHomeEmptyStates();
+            UpdateGameStatus();
+
+            if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl))
+                await RefreshServerDirectoryAsync();
         }
-        UpdateGameStatus();
-        if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)) await RefreshServerDirectoryAsync();
+        catch (Exception ex)
+        {
+            FrameworkStatusText.Text = "Launcher loaded with a settings warning.";
+            MessageBox.Show($"Some launcher settings could not be loaded.\n\n{ex.Message}", "SE1 Roleplay", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
+
+    private void UpdateSteamStatus()
+    {
+        var signedIn = !string.IsNullOrWhiteSpace(_settings.SteamId64);
+        SteamAccountText.Text = signedIn ? $"Steam ID: {_settings.SteamId64}" : "Steam not connected";
+        SteamSignInButton.Content = signedIn ? "SWITCH STEAM ACCOUNT" : "SIGN IN WITH STEAM";
+    }
+
+    private void UpdateHomeEmptyStates()
+    {
+        RecentEmptyText.Visibility = _recentServers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HomeDirectoryEmptyText.Visibility = _featuredServers.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void ShowPage(FrameworkElement page, string eyebrow, string title, Button active)
     {
-        HomePage.Visibility = Visibility.Collapsed; ServersPage.Visibility = Visibility.Collapsed;
-        CharactersPage.Visibility = Visibility.Collapsed; SettingsPage.Visibility = Visibility.Collapsed;
-        page.Visibility = Visibility.Visible; PageEyebrow.Text = eyebrow; PageTitle.Text = title;
+        HomePage.Visibility = Visibility.Collapsed;
+        ServersPage.Visibility = Visibility.Collapsed;
+        CharactersPage.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Collapsed;
+        page.Visibility = Visibility.Visible;
+        PageEyebrow.Text = eyebrow;
+        PageTitle.Text = title;
+
         foreach (var button in new[] { HomeNav, ServersNav, CharactersNav, SettingsNav })
         {
             button.Background = button == active ? (Brush)FindResource("AccentBrush") : (Brush)FindResource("AltBrush");
-            button.Foreground = button == active ? new SolidColorBrush(Color.FromRgb(11, 23, 18)) : (Brush)FindResource("TextBrush");
+            button.Foreground = button == active
+                ? new SolidColorBrush(Color.FromRgb(11, 23, 18))
+                : (Brush)FindResource("TextBrush");
         }
     }
+
     private void UpdateGameStatus()
     {
         var path = GamePathBox.Text;
         var found = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
-        GameStatusText.Text = found ? "Space Engineers installation detected" : "Game path not detected — Steam launch available";
-        HomeGamePathText.Text = found ? path : "Installation not detected. Steam launch will be used as a fallback.";
+        GameStatusText.Text = found ? "Game installation detected · Steam launch enabled" : "Launch through your Steam client";
     }
-    private void HomeNav_Click(object sender, RoutedEventArgs e) => ShowPage(HomePage, "WELCOME BACK", "Roleplay hub", HomeNav);
-    private void ServersNav_Click(object sender, RoutedEventArgs e) => ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Find your server", ServersNav);
-    private void CharactersNav_Click(object sender, RoutedEventArgs e) => ShowPage(CharactersPage, "PLAYER PROFILE", "Characters", CharactersNav);
-    private void SettingsNav_Click(object sender, RoutedEventArgs e) => ShowPage(SettingsPage, "PREFERENCES", "Settings", SettingsNav);
+
+    private void HomeNav_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
+
+    private void ServersNav_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
+
+    private void BrowseServers_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
+
+    private void CharactersNav_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(CharactersPage, "PLAYER PROFILE", "Characters", CharactersNav);
+
+    private void SettingsNav_Click(object sender, RoutedEventArgs e) =>
+        ShowPage(SettingsPage, "PREFERENCES", "Settings", SettingsNav);
+
+    private async void SteamSignIn_Click(object sender, RoutedEventArgs e)
+    {
+        SteamSignInButton.IsEnabled = false;
+        SteamSignInButton.Content = "WAITING FOR STEAM...";
+        try
+        {
+            var steamId = await _steamSignIn.SignInAsync();
+            _settings.SteamId64 = steamId;
+            await _settingsStore.SaveAsync(_settings);
+            UpdateSteamStatus();
+            FrameworkStatusText.Text = "Steam account verified.";
+        }
+        catch (OperationCanceledException)
+        {
+            FrameworkStatusText.Text = "Steam sign-in timed out or was cancelled.";
+            MessageBox.Show("Steam sign-in was cancelled or timed out. Please try again.", "Steam sign-in", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            FrameworkStatusText.Text = "Steam sign-in could not be completed.";
+            MessageBox.Show($"Could not verify your Steam account.\n\n{ex.Message}", "Steam sign-in failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            SteamSignInButton.IsEnabled = true;
+            UpdateSteamStatus();
+        }
+    }
+
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
-        _settings.ServerDirectoryUrl = DirectoryUrlBox.Text.Trim(); _settings.GameExecutablePath = GamePathBox.Text.Trim();
-        try { await _settingsStore.SaveAsync(_settings); SettingsStatusText.Text = "Settings saved."; UpdateGameStatus(); if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)) await RefreshServerDirectoryAsync(); }
-        catch (Exception ex) { SettingsStatusText.Text = $"Could not save settings: {ex.Message}"; }
+        _settings.ServerDirectoryUrl = DirectoryUrlBox.Text.Trim();
+        _settings.GameExecutablePath = GamePathBox.Text.Trim();
+        try
+        {
+            await _settingsStore.SaveAsync(_settings);
+            SettingsStatusText.Text = "Settings saved.";
+            UpdateGameStatus();
+            await RefreshServerDirectoryAsync();
+        }
+        catch (Exception ex)
+        {
+            SettingsStatusText.Text = $"Could not save settings: {ex.Message}";
+        }
     }
+
     private void DetectGame_Click(object sender, RoutedEventArgs e)
     {
         var path = _gameDetector.FindGameExecutable();
-        if (path is null) { SettingsStatusText.Text = "Automatic detection did not find the default Steam library. Enter the SpaceEngineers.exe path manually."; return; }
-        GamePathBox.Text = path; UpdateGameStatus(); SettingsStatusText.Text = "Installation detected. Save settings to remember this path.";
+        if (path is null)
+        {
+            SettingsStatusText.Text = "Automatic detection did not find the default Steam library. Steam launch will still work when Steam is installed.";
+            return;
+        }
+
+        GamePathBox.Text = path;
+        UpdateGameStatus();
+        SettingsStatusText.Text = "Installation detected. Save settings to remember this path.";
     }
-    private async void RefreshServers_Click(object sender, RoutedEventArgs e) => await RefreshServerDirectoryAsync();
+
+    private async void RefreshServers_Click(object sender, RoutedEventArgs e) =>
+        await RefreshServerDirectoryAsync();
+
     private async Task RefreshServerDirectoryAsync()
     {
-        var url = DirectoryUrlBox.Text.Trim(); if (string.IsNullOrWhiteSpace(url)) url = _settings.ServerDirectoryUrl;
-        if (string.IsNullOrWhiteSpace(url)) { DirectoryStatusText.Text = "No server directory configured. Add its HTTPS URL in Settings."; return; }
-        DirectoryStatusText.Text = "Connecting to server directory...";
+        var url = DirectoryUrlBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(url)) url = _settings.ServerDirectoryUrl;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            DirectoryStatusText.Text = "No server directory configured. Add the SE1 community directory HTTPS URL in Settings.";
+            _servers.Clear();
+            _featuredServers.Clear();
+            UpdateHomeEmptyStates();
+            return;
+        }
+
+        DirectoryStatusText.Text = "Connecting to community directory...";
         try
         {
-            var results = await _directoryClient.GetServersAsync(url); _servers.Clear();
-            foreach (var server in results) _servers.Add(server);
-            DirectoryStatusText.Text = results.Count == 0 ? "Directory connected, but it returned no servers." : $"Loaded {results.Count} listing(s). Live reachability is not independently verified.";
+            var results = await _directoryClient.GetServersAsync(url);
+            _servers.Clear();
+            _featuredServers.Clear();
+            foreach (var server in results)
+            {
+                _servers.Add(server);
+                if (_featuredServers.Count < 6) _featuredServers.Add(server);
+            }
+
+            DirectoryStatusText.Text = results.Count == 0
+                ? "Directory connected, but no communities have been published yet."
+                : $"Showing {results.Count} published server(s). Player counts depend on directory updates.";
+            UpdateHomeEmptyStates();
         }
-        catch (Exception ex) { _servers.Clear(); DirectoryStatusText.Text = $"Could not load directory: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            _servers.Clear();
+            _featuredServers.Clear();
+            DirectoryStatusText.Text = $"Could not load directory: {ex.Message}";
+            UpdateHomeEmptyStates();
+        }
     }
+
     private void LaunchGame_Click(object sender, RoutedEventArgs e)
     {
-        try { _gameLauncher.Launch(GamePathBox.Text); }
-        catch (Exception ex) { MessageBox.Show($"Could not open Space Engineers.\n\n{ex.Message}\n\nMake sure Steam is installed and Space Engineers is in your library.", "Unable to launch game", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        try
+        {
+            _gameLauncher.Launch();
+            FrameworkStatusText.Text = "Opening Space Engineers through Steam...";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not open Space Engineers through Steam. Make sure the Steam client is installed and running.\n\n{ex.Message}",
+                "Unable to launch Space Engineers", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void JoinServer_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ServerListing server }) return;
+        try
+        {
+            _gameLauncher.JoinServer(server.Address, server.Port);
+            _settings.RecentlyLaunchedServers.RemoveAll(s =>
+                (!string.IsNullOrWhiteSpace(server.Id) && s.Id == server.Id) ||
+                (string.Equals(s.Address, server.Address, StringComparison.OrdinalIgnoreCase) && s.Port == server.Port));
+            _settings.RecentlyLaunchedServers.Insert(0, server);
+            _settings.RecentlyLaunchedServers = _settings.RecentlyLaunchedServers.Take(10).ToList();
+
+            _recentServers.Clear();
+            foreach (var recent in _settings.RecentlyLaunchedServers) _recentServers.Add(recent);
+            UpdateHomeEmptyStates();
+            await _settingsStore.SaveAsync(_settings);
+            FrameworkStatusText.Text = $"Sent join request for {server.Name} to Steam.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not join this server. Check that its address and port are correct.\n\n{ex.Message}",
+                "Unable to join server", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 }

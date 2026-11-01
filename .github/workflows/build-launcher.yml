@@ -5,9 +5,9 @@ env:
 
 on:
   push:
-    paths: ["src/SE.Roleplay.Launcher/**", ".github/workflows/build-launcher.yml"]
+    paths: ["launcher/**", ".github/workflows/build-launcher.yml"]
   pull_request:
-    paths: ["src/SE.Roleplay.Launcher/**", ".github/workflows/build-launcher.yml"]
+    paths: ["launcher/**", ".github/workflows/build-launcher.yml"]
   workflow_dispatch:
 jobs:
   build:
@@ -17,5 +17,5 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
-      - name: Build WPF launcher
-        run: dotnet build src/SE.Roleplay.Launcher/SE.Roleplay.Launcher.csproj --configuration Release
+      - name: Build SE1 WPF launcher
+        run: dotnet build launcher/SE.Roleplay.Framework.Launcher/SE.Roleplay.Framework.Launcher.csproj --configuration Release
