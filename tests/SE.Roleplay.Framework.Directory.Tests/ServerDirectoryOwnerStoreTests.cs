@@ -89,7 +89,8 @@ public sealed class ServerDirectoryOwnerStoreTests
                 new() { Id = "legacy-id", Name = "Legacy listing", Address = "legacy.example", Port = 27016, MaxPlayers = 20 }
             }
         };
-        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(store.FilePath)!);\n        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(store.FilePath)!);
+        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
         Assert.Empty(await store.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None));
         Assert.Equal("Legacy listing", Assert.Single(await store.Store.GetPublicServersAsync(CancellationToken.None)).Name);
@@ -129,7 +130,8 @@ public sealed class ServerDirectoryOwnerStoreTests
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Directory:DataPath"] = FilePath })
                 .Build();
-            Store = new ServerDirectoryStore(configuration);\n            System.IO.Directory.CreateDirectory(_directory);
+            Store = new ServerDirectoryStore(configuration);
+            System.IO.Directory.CreateDirectory(_directory);
         }
 
         public void Dispose()
