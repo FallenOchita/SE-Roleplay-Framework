@@ -31,6 +31,19 @@ public sealed class SteamOpenIdVerifierTests
     }
 
     [Fact]
+    public async Task VerifyAsync_RejectsUnexpectedOpenIdNamespace()
+    {
+        var assertion = CreateAssertion();
+        assertion["openid.ns"] = "http://example.invalid/openid/2.0";
+        var verifier = new SteamOpenIdVerifier(new HttpClient(new StubHttpMessageHandler((_, _) =>
+            throw new InvalidOperationException("Unexpected protocol namespaces must be rejected before contacting Steam."))));
+
+        var result = await verifier.VerifyAsync(assertion, ReturnTo);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public async Task VerifyAsync_RejectsAssertion_WhenSteamDoesNotConfirmIt()
     {
         var verifier = new SteamOpenIdVerifier(new HttpClient(new StubHttpMessageHandler((_, _) =>
