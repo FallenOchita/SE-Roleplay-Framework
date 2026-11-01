@@ -90,7 +90,8 @@ No production owner-registration route should be enabled until the OpenID verifi
 
 - Complete: Steam OpenID assertion verification, browser-bound single-use login state, HTTPS-only login redirect configuration, protected cookie sign-in, and persisted Data Protection keys.
 - In progress: nullable `OwnerSteamId64` persistence and owner-scoped store operations. These operations compare the verified SteamID64 and perform authorization and mutation under the same store gate. Public-feed projections omit owner identity and API-key hashes.
-- Implemented in the current branch: authenticated owner HTTP routes, POST logout, ASP.NET Core antiforgery request tokens, exact configured-Origin checks on state-changing requests, owner-write rate limiting, and owner-scoped storage calls. The routes are not production-ready until endpoint-level integration tests and deployment validation pass.
+- Complete: authenticated owner HTTP routes, POST logout, ASP.NET Core antiforgery request tokens, exact configured-Origin checks on state-changing requests, owner-write rate limiting, and owner-scoped storage calls.
+- In progress: endpoint integration tests for authentication, CSRF rejection, registration secrecy, and cross-owner isolation. Rate limiting runs after authentication so the owner identity is available to its partition key.
 - Not yet implemented: owner portal and launcher owner UI.
 - Legacy records remain ownerless. No automatic claim or transfer is performed.
 
@@ -110,4 +111,13 @@ The owner API is now wired to the verified SteamID64 claim from the protected co
 - POST `/api/owner/servers/{id}/rotate-key` — rotates the server key and returns the replacement once.
 - POST `/auth/logout` — signs out and clears the browser-binding cookie.
 
-Every state-changing owner request requires both a single exact `Origin` matching the configured public HTTPS origin and a valid antiforgery token. Owner write routes have a per-IP/per-account fixed-window limit. Missing and non-owned listing IDs return the same 404 result. The owner API is still gated on endpoint integration tests before production use.
+Every state-changing owner request requires both a single exact `Origin` matching the configured public HTTPS origin and a valid antiforgery token. Owner write routes have a per-IP/per-account fixed-window limit. Missing and non-owned listing IDs return the same 404 result. The owner API remains gated on passing endpoint integration tests and deployment validation before production use.
+
+
+## Integration-test coverage
+
+The directory test project now uses an ASP.NET Core in-memory test host with a test-only authentication handler. The handler is compiled only into the test assembly and does not add a production authentication bypass.
+
+Coverage includes unauthenticated access rejection, successful owner registration, owner A versus owner B listing isolation, rejection of cross-owner update/delete/key-rotation attempts, exact-Origin enforcement, missing-antiforgery-token rejection, and ensuring registration responses do not disclose owner IDs or API-key hashes.
+
+The owner-write rate limiter is placed after authentication middleware so its partition key can include the verified account claim. Production authentication remains Steam OpenID cookie authentication.
