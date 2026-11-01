@@ -4,8 +4,8 @@ namespace SE.Roleplay.Framework.Directory.Services;
 
 /// <summary>
 /// Initializes the shared SQLite database used by directory authentication stores.
-/// The schema is intentionally separate from the current in-memory stores; stores are
-/// migrated to these tables in follow-up changes before multi-instance use is supported.
+/// Authentication state, authorization codes, and launcher tokens use these tables for
+/// cross-instance persistence and atomic replay/rotation protection.
 /// </summary>
 public sealed class DirectoryAuthDatabase
 {
