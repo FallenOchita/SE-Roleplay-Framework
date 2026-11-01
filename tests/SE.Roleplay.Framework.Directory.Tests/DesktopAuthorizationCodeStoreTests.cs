@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using SE.Roleplay.Framework.Directory.Services;
 using Xunit;
 
@@ -11,6 +12,137 @@ public sealed class DesktopAuthorizationCodeStoreTests
     private const string Redirect = "http://127.0.0.1:49152/oauth/callback/test";
     private const string Browser = "browser-session-id-with-more-than-32-characters";
     private const string SteamId = "76561198012345678";
+
+
+    [Fact]
+    public async Task SqliteState_IsSharedAndBoundToBrowserAcrossInstances()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var first = new DesktopAuthorizationCodeStore(database);
+            var second = new DesktopAuthorizationCodeStore(database);
+            var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+            var state = first.CreateState(Client, Redirect, Challenge(verifier), Browser, "launcher-state");
+
+            Assert.Null(second.CompleteAuthorization(state, Browser + "-wrong", SteamId));
+            var approval = second.CompleteAuthorization(state, Browser, SteamId);
+
+            Assert.NotNull(approval);
+            Assert.Equal("launcher-state", approval.ClientState);
+            Assert.Equal(Redirect, approval.RedirectUri);
+            Assert.Null(first.CompleteAuthorization(state, Browser, SteamId));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteState_CanBeCompletedByOnlyOneConcurrentInstance()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var stores = Enumerable.Range(0, 8).Select(_ => new DesktopAuthorizationCodeStore(database)).ToArray();
+            var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+            var state = stores[0].CreateState(Client, Redirect, Challenge(verifier), Browser);
+
+            var results = await Task.WhenAll(stores.Select(store =>
+                Task.Run(() => store.CompleteAuthorization(state, Browser, SteamId))));
+
+            Assert.Single(results.Where(result => result is not null));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteCode_CanBeRedeemedAcrossInstancesOnlyOnce()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var first = new DesktopAuthorizationCodeStore(database);
+            var second = new DesktopAuthorizationCodeStore(database);
+            var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+            var state = first.CreateState(Client, Redirect, Challenge(verifier), Browser);
+            var code = first.CompleteState(state, Browser, SteamId)!;
+
+            var grant = second.RedeemCode(code, Client, Redirect, verifier);
+
+            Assert.NotNull(grant);
+            Assert.Equal(SteamId, grant.SteamId64);
+            Assert.Null(first.RedeemCode(code, Client, Redirect, verifier));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteCode_CanBeRedeemedByOnlyOneConcurrentInstance()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var stores = Enumerable.Range(0, 8).Select(_ => new DesktopAuthorizationCodeStore(database)).ToArray();
+            var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+            var state = stores[0].CreateState(Client, Redirect, Challenge(verifier), Browser);
+            var code = stores[0].CompleteState(state, Browser, SteamId)!;
+
+            var results = await Task.WhenAll(stores.Select(store =>
+                Task.Run(() => store.RedeemCode(code, Client, Redirect, verifier))));
+
+            Assert.Single(results.Where(result => result is not null));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteDenial_ConsumesOnlyForMatchingBrowserAndReturnsStoredValues()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var first = new DesktopAuthorizationCodeStore(database);
+            var second = new DesktopAuthorizationCodeStore(database);
+            var state = first.CreateState(Client, Redirect,
+                Challenge("verifier-string-that-is-long-enough-for-pkce-123"), Browser, "deny-state");
+
+            Assert.Null(second.DenyAuthorization(state, Browser + "-wrong"));
+            var denial = second.DenyAuthorization(state, Browser);
+
+            Assert.NotNull(denial);
+            Assert.Equal(Redirect, denial.RedirectUri);
+            Assert.Equal("deny-state", denial.ClientState);
+            Assert.Null(first.DenyAuthorization(state, Browser));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    private static DirectoryAuthDatabase CreateDatabase(string path)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Directory:AuthDatabasePath"] = path })
+            .Build();
+        return new DirectoryAuthDatabase(configuration);
+    }
+
+    private static string CreateDatabasePath() =>
+        Path.Combine(Path.GetTempPath(), "serpf-desktop-auth-tests", Guid.NewGuid().ToString("N"), "auth.db");
+
+    private static void DeleteDatabase(string path)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        if (System.IO.Directory.Exists(directory))
+            System.IO.Directory.Delete(directory, recursive: true);
+    }
 
     [Fact]
     public void CreateState_RejectsNonLoopbackAndUnregisteredClient()
