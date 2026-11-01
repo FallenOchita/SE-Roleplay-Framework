@@ -1,109 +1,45 @@
 # SE Roleplay Framework
 
-A server-oriented roleplay framework for **Space Engineers 1**, designed to provide a foundation for persistent, community-run RP servers.
+A server-oriented roleplay framework for **Space Engineers 1**, designed to provide a foundation for persistent, community-run RP servers and a FiveM-style launcher/server ecosystem.
 
-> **Current status:** The host-neutral core and JSON player persistence are implemented in the open PR #2. A first Torch server adapter is now under development in a separate project. The adapter still requires compilation against a local Torch/SE installation and a dedicated-server smoke test before deployment.
+## Current architecture
 
-## Implemented core
+- The WPF desktop launcher handles Steam sign-in, server discovery, favorites, and joining.
+- Each Torch server remains authoritative for its own players, characters, permissions, and gameplay.
+- Character profiles are stored per server under the Torch instance's `Storage/SE-Roleplay-Framework/Players` directory. The same Steam account can have different characters on different servers.
+- The host-neutral .NET Standard 2.0 core contains session identity, events, module lifecycle, permissions, profile persistence, and character lifecycle services.
+- The .NET Framework 4.8 Torch adapter connects the core to Torch session and player lifecycle events.
+- The .NET 8 directory API publishes server listings and accepts authenticated server heartbeats.
 
-- Host-neutral .NET Standard 2.0 core library
-- Player session identity registry
-- Typed event bus and module lifecycle manager
-- Permission grant/check service
-- Persistent JSON player profiles, one file per Steam account
-- Multiple roleplay characters per account
-- Character creation, selection, deletion, and configurable account character limit
-- Automatic profile load on session connect and save/unload on disconnect
-- Automated tests for profile persistence and character lifecycle
-
-## Torch server adapter
-
-The first host integration is in `src/SE.Roleplay.Framework.Torch/`.
-
-- Loads through Torch's `manifest.xml` plugin manifest and `TorchPluginBase` lifecycle.
-- Attaches to Torch session and multiplayer lifecycle events.
-- Loads player profiles when players join and saves/unloads them when they leave.
-- Runs a five-minute autosave and flushes profiles on world/plugin shutdown.
-- Stores player JSON files under the Torch instance's `Storage/SE-Roleplay-Framework/Players` directory.
-
-See [Torch adapter build and installation notes](src/SE.Roleplay.Framework.Torch/README.md) and [adapter architecture](docs/TORCH_ADAPTER.md).
-
-The adapter uses proprietary Torch and Space Engineers assemblies from your own server installation. They are not included in this repository. It has not yet been compiled or smoke-tested against your local server build, so treat it as an integration milestone rather than a production-ready release.
-
-## Player data
-
-The host-neutral JSON store writes one profile per account. Each profile contains the platform account ID, last known display name, selected character ID, profile metadata, permission-name collection, and character records. Each character has a stable GUID, name, description, timestamps, and metadata.
-
-## Project layout
+## Repository layout
 
 ```
 src/
   SE.Roleplay.Framework.Core/       # Host-neutral services and persistence
-  SE.Roleplay.Framework.Torch/      # Space Engineers 1 Torch host adapter
+  SE.Roleplay.Framework.Torch/      # Space Engineers 1 Torch adapter
+services/
+  SE.Roleplay.Framework.Directory/  # Self-hosted server directory API
+launcher/
+  SE.Roleplay.Framework.Launcher/   # Windows WPF launcher
 tests/
   SE.Roleplay.Framework.Core.Tests/
 docs/
   CORE_ARCHITECTURE.md
   TORCH_ADAPTER.md
+  DIRECTORY_OWNER_AUTH.md
 ```
 
-## Build and test the core
-
-With the .NET 8 SDK installed:
-
-```sh
-dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
-dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release
-```
-
-## Build the Torch adapter
-
-The adapter targets .NET Framework 4.8, matching Torch's current project target. Build on Windows with the .NET Framework 4.8 targeting pack and the local server assemblies:
-
-```powershell
-dotnet build src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj -c Release -p:TorchLibPath="C:\Torch" -p:GameBinariesPath="C:\SpaceEngineersDedicated\DedicatedServer64"
-```
-
-Change those paths to your actual installation. The Torch directory must contain `Torch.dll`, `Torch.API.dll`, and `NLog.dll`; the dedicated-server directory must contain `VRage.Game.dll` and `VRage.Library.dll`.
-
-## Compatibility and safety
-
-- The core targets .NET Standard 2.0 and contains no game API types.
-- The Torch adapter is a separate .NET Framework 4.8 assembly.
-- Build and test against the exact Torch and SE server versions you intend to run.
-- Do not copy proprietary game or Torch assemblies into this repository.
-- Back up the server's `Storage/SE-Roleplay-Framework` directory before upgrading.
-- Permission grants are not yet restored from player profiles; permission persistence remains a follow-up.
-
-## Next milestones
-
-1. Compile and smoke-test the Torch adapter against the target server installation.
-2. Add configurable Torch settings and player/admin commands.
-3. Persist and restore permission grants.
-4. Add a character selection interface.
-5. Add modular RP systems: jobs, economy, inventory, organizations, and administration.
-
-## Design rules
-
-- Keep game API types outside the core assembly.
-- Treat Steam account IDs as stable keys; display names are mutable.
-- Keep persistence asynchronous at the boundary.
-- Avoid blocking file/database work on the game thread.
-- Back up persistent player data before upgrading the framework.
-
-
-## SE1 desktop launcher
+## Launcher
 
 The Windows WPF launcher lives in `launcher/SE.Roleplay.Framework.Launcher/`.
 
-- Steam sign-in uses Steam OpenID in the system browser and verifies the returned assertion with Steam. The launcher never asks for or stores a Steam password.
-- The verified SteamID64 and recent server launch history are stored locally in `%LOCALAPPDATA%/SERoleplayLauncher/settings.json`.
-- The Play button starts Space Engineers through Steam (App ID `244850`); server Join buttons use Steam's `steam://connect/` link.
-- The Home page shows recently launched servers and a preview of the community directory. Browse Servers shows every listing returned by the configured directory.
+- Steam sign-in uses Steam OpenID in the system browser and verifies the returned assertion. The launcher never asks for or stores a Steam password.
+- Play starts Space Engineers through Steam (App ID `244850`); server Join buttons use Steam's `steam://connect/` link.
+- Home and Browse Servers show community listings from a configurable HTTPS JSON directory.
+- Browse supports search, online/offline/favorites filters, server details, and locally saved favorites.
+- Character data is deliberately not stored in the launcher. Secure remote character management requires authenticated server APIs and server-side authorization.
 
-### Configure the community directory
-
-In the launcher Settings page, enter the HTTPS URL of a JSON directory endpoint. It must return a document shaped like this:
+Configure the community directory in the launcher's Settings page. The endpoint must return a JSON document shaped like:
 
 ```json
 {
@@ -128,20 +64,50 @@ In the launcher Settings page, enter the HTTPS URL of a JSON directory endpoint.
 }
 ```
 
-Publish new server listings in the directory feed to make them appear in Browse Servers. The launcher does not currently host that public directory itself, and a displayed player count/status is only as current as the directory feed.
+## Directory API
 
+The self-hosted .NET 8 service in `services/SE.Roleplay.Framework.Directory/` provides:
 
-### Launcher server discovery milestone
+- `GET /health` — service health check.
+- `GET /api/servers` — public server feed compatible with the launcher.
+- `POST /api/admin/servers` — bootstrap-admin registration; returns a random per-server API key once.
+- `PUT /api/servers/{id}/heartbeat` — authenticated live player-count/version update.
+- `DELETE /api/admin/servers/{id}` — bootstrap-admin listing removal.
 
-The launcher server browser now supports text search across community names, descriptions, regions, and tags; online/offline/favorites filters; a server details panel; and locally saved favorites. Directory records are validated before display and joining, including host/port checks, duplicate-ID filtering, bounded response size, and HTTPS for non-local directory endpoints.
+The Torch adapter can send authenticated HTTPS heartbeats immediately when a world loads and every 30 seconds thereafter. It tracks players from Torch join/leave events. Listings become Offline after 90 seconds without a heartbeat.
 
-The optional `version`, `websiteUrl`, `discordUrl`, and `rulesUrl` fields are accepted as directory metadata. This milestone does not yet provide a hosted directory service or a remote character-management API. Characters remain server-owned; launcher-based character management requires a secure server API with Steam account proof and server-side authorization, rather than trusting a locally stored SteamID.
+Configure the directory service with `SERPF_DIRECTORY_ADMIN_KEY` and optionally `SERPF_DIRECTORY_DATA_PATH`. Configure each Torch process with `SERPF_DIRECTORY_URL`, `SERPF_SERVER_ID`, and `SERPF_SERVER_API_KEY`; optional settings are `SERPF_SERVER_MAX_PLAYERS` and `SERPF_SERVER_VERSION`.
 
+See [the directory service setup guide](services/SE.Roleplay.Framework.Directory/README.md) and [Torch heartbeat configuration](src/SE.Roleplay.Framework.Torch/README.md). Host the directory behind HTTPS, keep all keys private, and never put the bootstrap admin key in the launcher or source control.
 
-## Self-hosted community directory API
+### Server-owner registration
 
-The .NET 8 directory service in `services/SE.Roleplay.Framework.Directory/` provides a public server feed for the launcher and authenticated registration/heartbeat endpoints for server operators.
+The directory currently uses a server-side bootstrap admin key for registration and deletion. Steam-authenticated self-service owner registration and listing management are the next security milestone. The design is documented in [Directory server-owner authentication](docs/DIRECTORY_OWNER_AUTH.md). No owner route should be enabled until Steam OpenID assertion validation, replay protection, secure sessions, and owner-scoped authorization are implemented and tested.
 
-See the [Directory Service setup guide](services/SE.Roleplay.Framework.Directory/README.md). The service uses an administrator bootstrap key to register and remove listings, generates a unique per-server API key, stores only its SHA-256 hash, and marks listings offline after 90 seconds without a heartbeat. Host it behind HTTPS and keep administrator/server credentials private.
+## Build and test
 
-The Torch plugin does not yet send heartbeats automatically; this service milestone establishes the directory API contract first. Automated Torch heartbeat integration and Steam-based owner self-service registration are follow-up tasks.
+With the .NET 8 SDK installed:
+
+```sh
+dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
+dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release
+dotnet build services/SE.Roleplay.Framework.Directory/SE.Roleplay.Framework.Directory.csproj --configuration Release
+```
+
+The Torch adapter targets .NET Framework 4.8 and requires proprietary Torch and Space Engineers assemblies from the local server installation. Build on Windows with the .NET Framework 4.8 targeting pack and local paths:
+
+```powershell
+dotnet build src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj -c Release -p:TorchLibPath="C:\Torch" -p:GameBinariesPath="C:\SpaceEngineersDedicated\DedicatedServer64"
+```
+
+The hosted CI validates the host-neutral core/tests and directory API. It cannot compile the Torch adapter without the local proprietary assemblies. Build and smoke-test that adapter against the exact Torch and SE1 server versions before production use.
+
+## Persistence and operational notes
+
+- Each server owns its own player profile data; back up `Storage/SE-Roleplay-Framework` before upgrades.
+- Directory API keys are generated cryptographically, stored as SHA-256 hashes, and checked using fixed-time comparison.
+- The public directory feed never exposes API-key hashes.
+- The JSON directory store uses a process-local lock and atomic file replacement. Run one service instance per data file; use a shared transactional database before horizontal scaling.
+- Torch player counts are based on join/leave events observed after the plugin attaches. If the plugin loads while players are already connected, the initial count can be temporarily low until those players reconnect.
+- Permission grants are not yet restored from player profiles; permission persistence remains a follow-up.
+- Do not copy proprietary game or Torch assemblies into this repository.
