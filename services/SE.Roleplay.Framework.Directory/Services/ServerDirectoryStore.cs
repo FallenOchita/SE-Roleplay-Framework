@@ -205,14 +205,14 @@ public sealed class ServerDirectoryStore
         RulesUrl = server.RulesUrl,
         Tags = server.Tags.ToList(),
         LastHeartbeatUtc = server.LastHeartbeatUtc,
-        ApiKeyHash = string.Empty,
+        ApiKeyHash = null,
         OwnerSteamId64 = null
     };
 
     public static string HashKey(string key) =>
         Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key)));
 
-    public static bool VerifyKey(string provided, string expectedHash)
+    public static bool VerifyKey(string provided, string? expectedHash)
     {
         if (string.IsNullOrWhiteSpace(provided) || string.IsNullOrWhiteSpace(expectedHash)) return false;
         var actual = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(provided));
