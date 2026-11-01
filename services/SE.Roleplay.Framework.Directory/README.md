@@ -125,3 +125,17 @@ The directory exposes a bearer-token surface for the official launcher at `/api/
 - `POST /{id}/rotate-key` rotates only that owner's server key and returns the new key once.
 
 These routes require the `LauncherBearer` policy and the fixed `serpf-windows-launcher` client token. They do not accept a SteamID from the request and do not use browser cookies. Because bearer credentials are explicitly attached by the launcher rather than ambient browser cookies, these routes do not use browser CSRF tokens; HTTPS, token expiry, owner-write rate limits, and SQL-level owner predicates remain enforced. The existing `/api/owner/*` browser routes retain cookie authentication, same-origin checks, and antiforgery validation. Never persist or log a newly returned server API key in launcher settings.
+
+
+### Server membership allowlists
+
+Schema version 5 adds persistent server-scoped allowlist membership. The launcher bearer API provides:
+
+- `GET /api/servers/{serverId}/membership/me` — returns whether the authenticated Steam account is allowed on that server.
+- `GET /api/launcher/owner/servers/{serverId}/members` — lists the server's allowlisted SteamID64 values and owner notes.
+- `POST /api/launcher/owner/servers/{serverId}/members` — adds or updates a member using `{ "steamId64": "...", "note": "..." }`.
+- `DELETE /api/launcher/owner/servers/{serverId}/members/{steamId64}` — removes a member.
+
+All endpoints require the `LauncherBearer` policy. The player's SteamID is taken from the validated token for membership checks. Owner operations derive the owner from the same token and include ownership predicates in their SQL statements. Notes are limited to 200 characters. Membership is independent per server and is removed automatically when its server record is deleted.
+
+This directory API exposes allowlist state; the game-server plugin must still enforce that state during its connection/admission flow. A failed or unavailable directory check must not be treated as permission to join when allowlisting is enabled.
