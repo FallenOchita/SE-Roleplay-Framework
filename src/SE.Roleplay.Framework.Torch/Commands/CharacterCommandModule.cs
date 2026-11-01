@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using SE.Roleplay.Framework.Core.Abstractions;
 using SE.Roleplay.Framework.Core.Identity;
 using Torch.Commands;
+using Torch.Commands.Permissions;
+using VRage.Game.ModAPI;
 
 namespace SE.Roleplay.Framework.Torch.Commands
 {
@@ -16,6 +18,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
     {
         internal static IFrameworkContext? Framework { get; set; }
 
+        [Permission(MyPromoteLevel.None)]
         [Command("list", "Lists your characters on this server.")]
         public async void List()
         {
@@ -48,6 +51,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
             }
         }
 
+        [Permission(MyPromoteLevel.None)]
         [Command("create", "Creates a character on this server.")]
         public async void Create(string name, string description = "")
         {
@@ -79,6 +83,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
             }
         }
 
+        [Permission(MyPromoteLevel.None)]
         [Command("select", "Selects one of your characters by its number in the list.")]
         public async void Select(int number)
         {
@@ -105,6 +110,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
             }
         }
 
+        [Permission(MyPromoteLevel.None)]
         [Command("delete", "Deletes one of your characters by its number in the list.")]
         public async void Delete(int number)
         {
