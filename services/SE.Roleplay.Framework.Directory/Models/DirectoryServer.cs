@@ -3,6 +3,8 @@ namespace SE.Roleplay.Framework.Directory.Models;
 public sealed class DirectoryServer
 {
     public string Id { get; set; } = string.Empty;
+    // Null for legacy/bootstrap-admin listings; assigned only from a verified server-side principal.
+    public string? OwnerSteamId64 { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
