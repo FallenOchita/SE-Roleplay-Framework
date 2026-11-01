@@ -111,6 +111,7 @@ namespace SE.Roleplay.Framework.Torch
                 AttachSession(session);
             else if (state == TorchSessionState.Unloading || state == TorchSessionState.Unloaded)
             {
+                StopDirectoryHeartbeat();
                 DetachSession();
                 _ = Task.Run(() => SaveAllProfilesAsync("world session shutdown"));
             }
@@ -220,9 +221,11 @@ namespace SE.Roleplay.Framework.Torch
         private void StartDirectoryHeartbeat()
         {
             if (_directoryHeartbeatUri == null || _directoryApiKey == null ||
-                _directoryHttpClient == null || _directoryHeartbeatTask != null)
+                _directoryHttpClient == null ||
+                (_directoryHeartbeatTask != null && !_directoryHeartbeatTask.IsCompleted))
                 return;
 
+            _directoryHeartbeatCancellation?.Dispose();
             _directoryHeartbeatCancellation = new CancellationTokenSource();
             var token = _directoryHeartbeatCancellation.Token;
             _directoryHeartbeatTask = Task.Run(() => RunDirectoryHeartbeatAsync(token));
@@ -281,9 +284,6 @@ namespace SE.Roleplay.Framework.Torch
                 return;
 
             cancellation.Cancel();
-            _directoryHeartbeatCancellation = null;
-            _directoryHeartbeatTask = null;
-            cancellation.Dispose();
         }
 
         private async Task ConnectPlayerAsync(ulong steamId, string playerName, Task? previousOperation)
@@ -369,6 +369,8 @@ namespace SE.Roleplay.Framework.Torch
             {
                 _context?.Logger.Warn("Directory heartbeat did not stop cleanly: " + exception.GetBaseException().Message);
             }
+            _directoryHeartbeatCancellation?.Dispose();
+            _directoryHeartbeatCancellation = null;
             _directoryHttpClient?.Dispose();
             _directoryHttpClient = null;
 
