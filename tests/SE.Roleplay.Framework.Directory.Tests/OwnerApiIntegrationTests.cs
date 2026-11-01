@@ -252,6 +252,22 @@ public sealed class OwnerApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, ownerResponse.StatusCode);
         using var ownerJson = JsonDocument.Parse(await ownerResponse.Content.ReadAsStringAsync());
         Assert.Equal(OwnerA, ownerJson.RootElement.GetProperty("steamId64").GetString());
+
+        // Obtain a real antiforgery token and complete logout using the callback-issued cookie.
+        var csrfResponse = await client.GetAsync("/api/owner/csrf");
+        Assert.Equal(HttpStatusCode.OK, csrfResponse.StatusCode);
+        using var csrfJson = JsonDocument.Parse(await csrfResponse.Content.ReadAsStringAsync());
+        var requestToken = csrfJson.RootElement.GetProperty("requestToken").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(requestToken));
+
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        logoutRequest.Headers.Add("Origin", Origin);
+        logoutRequest.Headers.Add("X-CSRF-TOKEN", requestToken);
+        var logout = await client.SendAsync(logoutRequest);
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+
+        var afterLogout = await client.GetAsync("/api/owner/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
     }
 
     [Fact]
