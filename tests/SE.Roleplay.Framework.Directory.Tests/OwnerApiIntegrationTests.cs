@@ -215,8 +215,10 @@ public sealed class OwnerApiIntegrationTests
         var login = await client.GetAsync("/auth/steam/login");
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
         var loginQuery = QueryHelpers.ParseQuery(login.Headers.Location!.Query);
-        var returnTo = Assert.Single(loginQuery["openid.return_to"]);
-        var state = Assert.Single(QueryHelpers.ParseQuery(new Uri(returnTo).Query)["state"]);
+        var returnTo = Assert.Single(loginQuery["openid.return_to"])
+            ?? throw new InvalidOperationException("Steam login redirect did not include a return URL.");
+        var state = Assert.Single(QueryHelpers.ParseQuery(new Uri(returnTo).Query)["state"])
+            ?? throw new InvalidOperationException("Steam login return URL did not include state.");
         var claimedId = "https://steamcommunity.com/openid/id/" + OwnerA;
         var callbackParameters = new Dictionary<string, string>
         {
@@ -267,7 +269,11 @@ public sealed class OwnerApiIntegrationTests
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
 
         var afterLogout = await client.GetAsync("/api/owner/me");
-        Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
+        // Cookie authentication redirects unauthenticated browser requests to the Steam login route.
+        // A 200 response here would mean the callback-issued owner cookie remained valid.
+        Assert.Equal(HttpStatusCode.Found, afterLogout.StatusCode);
+        Assert.NotNull(afterLogout.Headers.Location);
+        Assert.StartsWith("/auth/steam/login", afterLogout.Headers.Location!.OriginalString, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -352,9 +358,11 @@ public sealed class OwnerApiIntegrationTests
         Assert.NotNull(login.Headers.Location);
 
         var steamQuery = QueryHelpers.ParseQuery(login.Headers.Location!.Query);
-        var returnTo = Assert.Single(steamQuery["openid.return_to"]);
+        var returnTo = Assert.Single(steamQuery["openid.return_to"])
+            ?? throw new InvalidOperationException("Steam login redirect did not include a return URL.");
         var callbackQuery = QueryHelpers.ParseQuery(new Uri(returnTo).Query);
-        var state = Assert.Single(callbackQuery["state"]);
+        var state = Assert.Single(callbackQuery["state"])
+            ?? throw new InvalidOperationException("Steam login return URL did not include state.");
         Assert.False(string.IsNullOrWhiteSpace(state));
         return state;
     }
