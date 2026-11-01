@@ -100,6 +100,8 @@ public sealed class ServerDirectoryOwnerStoreTests
         Assert.Equal("Legacy listing", imported.Name);
         Assert.Null(imported.ApiKeyHash);
         Assert.Equal(new[] { "roleplay", "legacy" }, imported.Tags);
+        Assert.True(await store.Store.HeartbeatAsync("legacy-id", "legacy-api-key",
+            new HeartbeatRequest { Players = 3, MaxPlayers = 20, Version = "migrated" }, CancellationToken.None));
 
         await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(new DirectoryDocument
         {
