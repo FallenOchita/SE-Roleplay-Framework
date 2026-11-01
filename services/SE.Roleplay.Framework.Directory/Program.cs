@@ -557,6 +557,67 @@ app.MapDelete("/api/owner/servers/{serverId}/players/permissions", async Task<IR
     return revoked ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization().RequireRateLimiting("owner-writes");
 
+// Launcher owner endpoints use the short-lived directory-issued bearer token.
+// Unlike browser-cookie mutations, bearer requests are not ambient and do not use CSRF tokens.
+app.MapGet("/api/launcher/owner/servers", async Task<IResult> (
+    ClaimsPrincipal user, ServerDirectoryStore store, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var servers = await store.GetOwnedServersAsync(steamId, cancellationToken);
+    return Results.Ok(new { servers });
+}).RequireAuthorization("LauncherBearer");
+
+app.MapPost("/api/launcher/owner/servers", async Task<IResult> (
+    ClaimsPrincipal user, RegisterServerRequest request, ServerDirectoryStore store,
+    CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    if (!IsValidRegistration(request, out var error))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = new[] { error } });
+    var (server, apiKey) = await store.RegisterOwnedAsync(request, steamId, cancellationToken);
+    return Results.Created($"/api/launcher/owner/servers/{server.Id}", new
+    {
+        server.Id, server.Name, server.Address, server.Port, apiKey,
+        message = "Store this API key securely. It is returned only once."
+    });
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
+app.MapPut("/api/launcher/owner/servers/{id}", async Task<IResult> (
+    string id, ClaimsPrincipal user, RegisterServerRequest request, ServerDirectoryStore store,
+    CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    if (!IsValidRegistration(request, out var error))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = new[] { error } });
+    return await store.UpdateOwnedAsync(id, steamId, request, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
+app.MapDelete("/api/launcher/owner/servers/{id}", async Task<IResult> (
+    string id, ClaimsPrincipal user, ServerDirectoryStore store, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    return await store.DeleteOwnedAsync(id, steamId, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
+app.MapPost("/api/launcher/owner/servers/{id}/rotate-key", async Task<IResult> (
+    string id, ClaimsPrincipal user, ServerDirectoryStore store, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var apiKey = await store.RotateOwnedApiKeyAsync(id, steamId, cancellationToken);
+    return apiKey is null ? Results.NotFound() : Results.Ok(new
+    {
+        apiKey,
+        message = "Store this API key securely. It is returned only once."
+    });
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
 app.Run();
 
 static Uri? GetPublicBaseUrl(IConfiguration configuration)
