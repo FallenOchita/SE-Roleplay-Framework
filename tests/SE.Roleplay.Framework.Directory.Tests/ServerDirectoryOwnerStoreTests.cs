@@ -134,7 +134,7 @@ public sealed class ServerDirectoryOwnerStoreTests
 
         public void Dispose()
         {
-            if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+            if (System.IO.Directory.Exists(_directory)) System.IO.Directory.Delete(_directory, recursive: true);
         }
     }
 }
