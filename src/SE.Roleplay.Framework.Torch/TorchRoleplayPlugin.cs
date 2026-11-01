@@ -17,8 +17,10 @@ using Newtonsoft.Json;
 using Torch;
 using Torch.API;
 using Torch.API.Managers;
+using Torch.API.Event;
 using Torch.API.Plugins;
 using Torch.API.Session;
+using Torch.Server.Managers;
 
 namespace SE.Roleplay.Framework.Torch
 {
@@ -42,6 +44,8 @@ namespace SE.Roleplay.Framework.Torch
         private string? _directoryApiKey;
         private int _directoryMaxPlayers;
         private string _directoryServerVersion = "SE1";
+        private IEventManager? _eventManager;
+        private TorchAdmissionEventHandler? _admissionHandler;
 
         public override void Init(ITorchBase torch)
         {
@@ -85,6 +89,7 @@ namespace SE.Roleplay.Framework.Torch
             _sessionManager.SessionStateChanged += OnSessionStateChanged;
             _nextAutosaveUtc = DateTime.UtcNow.AddSeconds(options.AutosaveIntervalSeconds);
             ConfigureDirectoryHeartbeat();
+            ConfigureAdmissionEnforcement(torch);
 
             if (_sessionManager.CurrentSession?.State == TorchSessionState.Loaded)
                 AttachSession(_sessionManager.CurrentSession);
@@ -218,6 +223,48 @@ namespace SE.Roleplay.Framework.Torch
             _context?.Logger.Info("Directory heartbeat configured for server " + serverId + ".");
         }
 
+
+        private void ConfigureAdmissionEnforcement(ITorchBase torch)
+        {
+            var enabled = string.Equals(
+                Environment.GetEnvironmentVariable("SERPF_ADMISSION_ENFORCEMENT"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+            if (!enabled)
+            {
+                _context?.Logger.Info("Directory admission enforcement is disabled. Set SERPF_ADMISSION_ENFORCEMENT=true to enable it.");
+                return;
+            }
+
+            var directoryUrl = Environment.GetEnvironmentVariable("SERPF_DIRECTORY_URL");
+            var serverId = Environment.GetEnvironmentVariable("SERPF_SERVER_ID");
+            var apiKey = Environment.GetEnvironmentVariable("SERPF_SERVER_API_KEY");
+            _eventManager = torch.Managers.GetManager<IEventManager>();
+            if (_eventManager == null)
+                throw new InvalidOperationException("Torch did not provide IEventManager; admission enforcement cannot be safely enabled.");
+
+            if (!Uri.TryCreate(directoryUrl, UriKind.Absolute, out var directoryUri) ||
+                directoryUri.Scheme != Uri.UriSchemeHttps ||
+                !string.IsNullOrWhiteSpace(directoryUri.Query) ||
+                !string.IsNullOrWhiteSpace(directoryUri.Fragment) ||
+                string.IsNullOrWhiteSpace(serverId) ||
+                string.IsNullOrWhiteSpace(apiKey))
+            {
+                _admissionHandler = new TorchAdmissionEventHandler(_context!.Logger);
+                _eventManager.RegisterHandler(_admissionHandler);
+                _context.Logger.Warn("Directory admission enforcement was requested with invalid configuration. The fail-closed Torch hook is active and rejects pending connections until configuration is corrected.");
+                return;
+            }
+
+            _admissionHandler = new TorchAdmissionEventHandler(
+                new Uri(directoryUri.GetLeftPart(UriPartial.Authority) + directoryUri.AbsolutePath.TrimEnd('/') + "/"),
+                serverId,
+                apiKey,
+                _context!.Logger);
+            _eventManager.RegisterHandler(_admissionHandler);
+            _context.Logger.Info("SE1 pre-admission allowlist enforcement is enabled through Torch ValidateAuthTicketEvent. Directory failures reject pending connections.");
+        }
+
         private void StartDirectoryHeartbeat()
         {
             if (_directoryHeartbeatUri == null || _directoryApiKey == null ||
@@ -348,6 +395,11 @@ namespace SE.Roleplay.Framework.Torch
                 _sessionManager.SessionStateChanged -= OnSessionStateChanged;
 
             DetachSession();
+            if (_eventManager != null && _admissionHandler != null)
+                _eventManager.UnregisterHandler(_admissionHandler);
+            _admissionHandler?.Dispose();
+            _admissionHandler = null;
+            _eventManager = null;
             StopDirectoryHeartbeat();
 
             // Torch's plugin disposal is synchronous. Finish outstanding profile I/O before releasing services.
