@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <ProjectReference Include="..\SE.Roleplay.Framework.Core\SE.Roleplay.Framework.Core.csproj" />
     <Reference Include="Torch">
       <HintPath>$(TorchLibPath)\Torch.dll</HintPath>
