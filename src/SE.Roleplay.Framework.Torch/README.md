@@ -42,7 +42,7 @@ Torch and Space Engineers ship proprietary runtime assemblies. They are not incl
 
 - Windows with the .NET Framework 4.8 targeting pack
 - .NET SDK capable of building SDK-style `net48` projects
-- Torch installation folder containing `Torch.dll`, `Torch.API.dll`, and `NLog.dll`
+- Torch installation folder containing `Torch.dll`, `Torch.API.dll`, `Torch.Server.dll`, and `NLog.dll`
 - Space Engineers dedicated server `DedicatedServer64` folder containing `VRage.Game.dll` and `VRage.Library.dll`
 
 Build from the repository root:
@@ -67,6 +67,25 @@ Torch plugin packaging and deployment can differ between Torch releases. Validat
 ## Compatibility note
 
 The adapter follows Torch's `TorchPluginBase`, `ITorchSessionManager`, `IMultiplayerManagerBase`, and `Torch.Commands` APIs. A successful compile against local runtime assemblies and an actual dedicated-server smoke test are still required before calling this adapter production-ready.
+
+## Pre-admission allowlist enforcement (SE1)
+
+The adapter integrates with Torch's dedicated-server `ValidateAuthTicketEvent`. This event is raised during the authentication/connection attempt, before Torch accepts the player. The plugin preserves Torch's existing verdict (bans, Steam authentication, capacity, and group checks) and only performs the directory lookup when that verdict is `OK`.
+
+Enable the gate by setting these environment variables in the Torch server process:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SERPF_ADMISSION_ENFORCEMENT` | Yes | Set to `true` to register the pre-admission hook. |
+| `SERPF_DIRECTORY_URL` | Yes | Directory HTTPS base URL, for example `https://directory.example.net`. |
+| `SERPF_SERVER_ID` | Yes | Registered server ID. |
+| `SERPF_SERVER_API_KEY` | Yes | Server API key; keep it on the server only. |
+
+The hook calls `GET /api/servers/{serverId}/admission/{steamId64}` with `X-Server-Api-Key`. SteamID64 comes from Torch's server-side authentication event, never from player-supplied data. If the directory says the player is not allowed, Torch rejects the pending connection. The plugin first awaits Torch's existing verdict, so its normal authentication and server checks remain in force.
+
+**Fail-closed behavior:** when enforcement is enabled, a timeout, directory error, invalid response, or incomplete configuration rejects the pending connection. Keep the directory service reachable before enabling enforcement. If `SERPF_ADMISSION_ENFORCEMENT` is not `true`, the admission handler is not registered and directory allowlist settings do not affect joins.
+
+This feature depends on the directory admission endpoints and schema introduced by the companion server-admission-policy change. The plugin requires `Torch.Server.dll` from the same Torch installation used to build and run the server. Build against that exact Torch version and test on a staging world before production use.
 
 ## Server-scoped character profiles
 
