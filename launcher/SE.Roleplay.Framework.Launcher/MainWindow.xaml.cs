@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly ServerDirectoryClient _directoryClient = new();
     private readonly SteamOpenIdService _steamSignIn = new();
     private readonly ObservableCollection<ServerListing> _servers = new();
+    private readonly ObservableCollection<ServerListing> _visibleServers = new();
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
     private readonly ObservableCollection<ServerListing> _recentServers = new();
     private LauncherSettings _settings = new();
@@ -23,7 +24,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        ServerList.ItemsSource = _servers;
+        ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
         ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
             }
 
             _settings.RecentlyLaunchedServers ??= new List<ServerListing>();
+            _settings.FavoriteServerIds ??= new List<string>();
             foreach (var server in _settings.RecentlyLaunchedServers.Take(10))
                 _recentServers.Add(server);
 
@@ -205,15 +207,109 @@ public partial class MainWindow : Window
             DirectoryStatusText.Text = results.Count == 0
                 ? "Directory connected, but no communities have been published yet."
                 : $"Showing {results.Count} published server(s). Player counts depend on directory updates.";
+            ApplyServerFilters();
             UpdateHomeEmptyStates();
         }
         catch (Exception ex)
         {
             _servers.Clear();
+            _visibleServers.Clear();
             _featuredServers.Clear();
             DirectoryStatusText.Text = $"Could not load directory: {ex.Message}";
+            ApplyServerFilters();
             UpdateHomeEmptyStates();
         }
+    }
+
+    private void ServerSearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyServerFilters();
+
+    private void ServerStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyServerFilters();
+
+    private void ApplyServerFilters()
+    {
+        if (_visibleServers == null || ServerSearchBox == null || ServerStatusFilter == null)
+            return;
+
+        var query = ServerSearchBox.Text.Trim();
+        var filter = (ServerStatusFilter.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "All servers";
+        var matches = _servers.Where(server =>
+        {
+            var searchable = string.Join(" ", server.Name, server.Description, server.Region,
+                string.Join(" ", server.Tags ?? new List<string>()));
+            var textMatch = string.IsNullOrWhiteSpace(query) || searchable.Contains(query, StringComparison.OrdinalIgnoreCase);
+            var favorite = !string.IsNullOrWhiteSpace(server.Id) && _settings.FavoriteServerIds.Contains(server.Id);
+            var status = (server.Status ?? string.Empty).Trim();
+            var statusMatch = filter switch
+            {
+                "Online" => status.Equals("Online", StringComparison.OrdinalIgnoreCase),
+                "Offline" => status.Equals("Offline", StringComparison.OrdinalIgnoreCase),
+                "Favorites" => favorite,
+                _ => true
+            };
+            return textMatch && statusMatch;
+        }).ToList();
+
+        _visibleServers.Clear();
+        foreach (var server in matches) _visibleServers.Add(server);
+        ServerResultsText.Text = $"{matches.Count} COMMUNITIES";
+        ServerResultsEmptyText.Visibility = matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ServerDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerListing server }) ShowServerDetails(server);
+    }
+
+    private void ShowServerDetails(ServerListing server)
+    {
+        SelectedServerNameText.Text = server.Name;
+        SelectedServerDescriptionText.Text = string.IsNullOrWhiteSpace(server.Description) ? "No description provided." : server.Description;
+        SelectedServerAddressText.Text = $"Address: {server.Address}:{server.Port}";
+        SelectedServerRegionText.Text = $"Region: {(string.IsNullOrWhiteSpace(server.Region) ? "Not specified" : server.Region)}";
+        SelectedServerPlayersText.Text = $"Players: {Math.Max(0, server.Players)} / {Math.Max(0, server.MaxPlayers)}";
+        SelectedServerStatusText.Text = $"Status: {server.Status}";
+        SelectedServerVersionText.Text = $"Version: {(string.IsNullOrWhiteSpace(server.Version) ? "Not specified" : server.Version)}";
+        SelectedServerTagsText.Text = server.Tags == null || server.Tags.Count == 0 ? "No tags" : string.Join(" · ", server.Tags);
+        SelectedServerJoinButton.Tag = server;
+        SelectedServerJoinButton.IsEnabled = IsJoinable(server);
+        SelectedServerFavoriteButton.Tag = server;
+        SelectedServerFavoriteButton.IsEnabled = !string.IsNullOrWhiteSpace(server.Id);
+        SelectedServerFavoriteButton.Content = IsFavorite(server) ? "★ FAVORITED" : "☆ FAVORITE";
+    }
+
+    private bool IsFavorite(ServerListing server) =>
+        !string.IsNullOrWhiteSpace(server.Id) && _settings.FavoriteServerIds.Contains(server.Id);
+
+    private static bool IsJoinable(ServerListing server) =>
+        !string.IsNullOrWhiteSpace(server.Address) && server.Port is >= 1 and <= 65535;
+
+    private async void FavoriteServer_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: ServerListing server }) await ToggleFavoriteAsync(server);
+    }
+
+    private async void SelectedServerFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedServerFavoriteButton.Tag is ServerListing server) await ToggleFavoriteAsync(server);
+    }
+
+    private async Task ToggleFavoriteAsync(ServerListing server)
+    {
+        if (string.IsNullOrWhiteSpace(server.Id)) return;
+        if (IsFavorite(server)) _settings.FavoriteServerIds.Remove(server.Id);
+        else _settings.FavoriteServerIds.Add(server.Id);
+        _settings.FavoriteServerIds = _settings.FavoriteServerIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        await _settingsStore.SaveAsync(_settings);
+        ApplyServerFilters();
+        if (SelectedServerFavoriteButton.Tag is ServerListing selected && selected.Id == server.Id)
+            SelectedServerFavoriteButton.Content = IsFavorite(server) ? "★ FAVORITED" : "☆ FAVORITE";
+        FrameworkStatusText.Text = IsFavorite(server) ? $"Saved {server.Name} to favorites." : $"Removed {server.Name} from favorites.";
+    }
+
+    private async void SelectedServerJoin_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedServerJoinButton.Tag is ServerListing server)
+            await JoinServerAsync(server);
     }
 
     private void LaunchGame_Click(object sender, RoutedEventArgs e)
@@ -233,6 +329,17 @@ public partial class MainWindow : Window
     private async void JoinServer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: ServerListing server }) return;
+        await JoinServerAsync(server);
+    }
+
+    private async Task JoinServerAsync(ServerListing server)
+    {
+        if (!IsJoinable(server))
+        {
+            MessageBox.Show("This directory entry does not contain a valid server address and port.", "Invalid server listing", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         try
         {
             _gameLauncher.JoinServer(server.Address, server.Port);
