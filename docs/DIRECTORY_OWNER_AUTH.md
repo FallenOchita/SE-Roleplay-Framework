@@ -118,6 +118,6 @@ Every state-changing owner request requires both a single exact `Origin` matchin
 
 The directory test project now uses an ASP.NET Core in-memory test host with a test-only authentication handler. The handler is compiled only into the test assembly and does not add a production authentication bypass.
 
-Coverage includes unauthenticated access rejection, successful owner registration, owner A versus owner B listing isolation, rejection of cross-owner update/delete/key-rotation attempts, exact-Origin enforcement, missing-antiforgery-token rejection, and ensuring registration responses do not disclose owner IDs or API-key hashes.
+Coverage includes unauthenticated access rejection, successful owner registration, owner A versus owner B listing isolation, rejection of cross-owner update/delete/key-rotation attempts, successful owner update and deletion, successful key rotation with immediate invalidation of the previous key, exact-Origin enforcement, missing-antiforgery-token rejection, and ensuring registration responses do not disclose owner IDs or API-key hashes.
 
 The owner-write rate limiter is placed after authentication middleware so its partition key can include the verified account claim. Production authentication remains Steam OpenID cookie authentication.
