@@ -94,7 +94,7 @@ public sealed class PlayerProfileStoreTests
         public static async Task<Fixture> CreateAsync()
         {
             var directory = Path.Combine(Path.GetTempPath(), "serpf-player-tests-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(directory);
+            System.IO.Directory.CreateDirectory(directory);
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Directory:AuthDatabasePath"] = Path.Combine(directory, "auth.db"),
@@ -110,7 +110,7 @@ public sealed class PlayerProfileStoreTests
         public void Dispose()
         {
             SqliteConnection.ClearAllPools();
-            if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+            if (System.IO.Directory.Exists(_directory)) System.IO.Directory.Delete(_directory, recursive: true);
         }
     }
 }
