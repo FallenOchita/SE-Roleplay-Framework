@@ -90,7 +90,7 @@ public sealed class SteamOpenIdService
             throw new InvalidOperationException("Steam returned an unexpected sign-in response.");
 
         var claimedId = Get("claimed_id");
-        var match = Regex.Match(claimedId, @"^https://steamcommunity\.com/openid/id/(\d{17})$", RegexOptions.CultureInvariant);
+        var match = Regex.Match(claimedId, @"^https?://steamcommunity\.com/openid/id/(\d{17})$", RegexOptions.CultureInvariant);
         if (!match.Success || Get("identity") != claimedId)
             throw new InvalidOperationException("Steam did not return a valid SteamID64.");
 
