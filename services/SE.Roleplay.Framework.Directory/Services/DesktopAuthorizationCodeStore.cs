@@ -46,11 +46,12 @@ public sealed class DesktopAuthorizationCodeStore
         {
             Prune(now);
             var key = HashKey(state);
-            if (!_states.Remove(key, out var entry))
+            if (!_states.TryGetValue(key, out var entry))
                 return null;
             if (entry.ExpiresAt <= now ||
                 !CryptographicOperations.FixedTimeEquals(entry.BrowserHash, Hash(browserSession)))
                 return null;
+            _states.Remove(key);
 
             var code = NewValue();
             _codes.Add(HashKey(code), new CodeEntry(verifiedSteamId64, entry.ClientId,
