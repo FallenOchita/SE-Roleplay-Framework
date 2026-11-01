@@ -108,7 +108,7 @@ Schema version 4 adds durable player profiles and server-scoped permission grant
 - `GET /api/player/profile` and `PUT /api/player/profile` use the launcher's validated bearer token. The SteamID64 is taken only from the token; clients cannot select another player's identity.
 - Player profiles store a display name (up to 40 characters) and biography (up to 500 characters). A profile is private to its authenticated player unless a future public-profile endpoint is explicitly added.
 - `GET /api/servers/{serverId}/permissions/me` returns the signed-in player's active permissions for that server only.
-- Server owners can grant permissions with `POST /api/owner/servers/{serverId}/players/permissions` and revoke them with `DELETE` on the same route. These browser-cookie mutations require the existing same-origin and antiforgery protections.
+- Server owners can grant permissions with `POST /api/owner/servers/{serverId}/players/permissions` (JSON body) and revoke them with `DELETE /api/owner/servers/{serverId}/players/permissions?steamId64={steamId64}&permission={permission}`. These browser-cookie mutations require the existing same-origin and antiforgery protections.
 - Grants are keyed by server, player SteamID64, and permission name. Permission names are lowercase keys using letters, digits, dots, underscores, hyphens, and colons. Optional expiry is limited to 365 days.
 - Grant and revoke SQL statements verify server ownership in the same statement as the mutation. A server deletion cascades its grants. Expired grants are never returned as active.
 - Player profile and permission data are stored in the shared SQLite database, so they persist across restarts and service instances using the same database.
