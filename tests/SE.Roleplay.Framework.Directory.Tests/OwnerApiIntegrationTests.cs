@@ -95,6 +95,27 @@ public sealed class OwnerApiIntegrationTests
     }
 
     [Fact]
+    public async Task Logout_RequiresCsrfProofAndClearsAuthenticationCookies()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateOwnerClient(OwnerA);
+
+        using var missingToken = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        missingToken.Headers.Add("Origin", Origin);
+        var rejected = await client.SendAsync(missingToken);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+        var logout = await SendProtectedAsync(client, HttpMethod.Post, "/auth/logout");
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+
+        var cookies = string.Join(";", logout.Headers.TryGetValues("Set-Cookie", out var values)
+            ? values
+            : Array.Empty<string>());
+        Assert.Contains("__Host-serpf-owner", cookies, StringComparison.Ordinal);
+        Assert.Contains("__Host-serpf-browser", cookies, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Registration_ReturnsApiKeyOnceAndDoesNotExposeOwnerIdentity()
     {
         using var factory = new DirectoryApiFactory();
