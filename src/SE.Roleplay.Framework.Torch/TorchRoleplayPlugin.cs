@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SE.Roleplay.Framework.Core;
@@ -11,6 +13,7 @@ using SE.Roleplay.Framework.Core.Identity;
 using SE.Roleplay.Framework.Core.Permissions;
 using SE.Roleplay.Framework.Core.Persistence;
 using SE.Roleplay.Framework.Torch.Commands;
+using Newtonsoft.Json;
 using Torch;
 using Torch.API;
 using Torch.API.Managers;
@@ -31,6 +34,14 @@ namespace SE.Roleplay.Framework.Torch
         private DateTime _nextAutosaveUtc;
         private int _autosaveRunning;
         private bool _disposed;
+        private readonly ConcurrentDictionary<ulong, byte> _onlinePlayers = new ConcurrentDictionary<ulong, byte>();
+        private CancellationTokenSource? _directoryHeartbeatCancellation;
+        private Task? _directoryHeartbeatTask;
+        private HttpClient? _directoryHttpClient;
+        private Uri? _directoryHeartbeatUri;
+        private string? _directoryApiKey;
+        private int _directoryMaxPlayers;
+        private string _directoryServerVersion = "SE1";
 
         public override void Init(ITorchBase torch)
         {
@@ -73,6 +84,7 @@ namespace SE.Roleplay.Framework.Torch
 
             _sessionManager.SessionStateChanged += OnSessionStateChanged;
             _nextAutosaveUtc = DateTime.UtcNow.AddSeconds(options.AutosaveIntervalSeconds);
+            ConfigureDirectoryHeartbeat();
 
             if (_sessionManager.CurrentSession?.State == TorchSessionState.Loaded)
                 AttachSession(_sessionManager.CurrentSession);
@@ -99,6 +111,7 @@ namespace SE.Roleplay.Framework.Torch
                 AttachSession(session);
             else if (state == TorchSessionState.Unloading || state == TorchSessionState.Unloaded)
             {
+                StopDirectoryHeartbeat();
                 DetachSession();
                 _ = Task.Run(() => SaveAllProfilesAsync("world session shutdown"));
             }
@@ -116,8 +129,10 @@ namespace SE.Roleplay.Framework.Torch
                 return;
             }
 
+            _onlinePlayers.Clear();
             _multiplayer.PlayerJoined += OnPlayerJoined;
             _multiplayer.PlayerLeft += OnPlayerLeft;
+            StartDirectoryHeartbeat();
             _context?.Logger.Info("Attached Torch player lifecycle events.");
         }
 
@@ -129,6 +144,7 @@ namespace SE.Roleplay.Framework.Torch
             _multiplayer.PlayerJoined -= OnPlayerJoined;
             _multiplayer.PlayerLeft -= OnPlayerLeft;
             _multiplayer = null;
+            _onlinePlayers.Clear();
         }
 
         private void OnPlayerJoined(IPlayer player)
@@ -137,6 +153,7 @@ namespace SE.Roleplay.Framework.Torch
                 return;
 
             // Serialize reconnects behind any previous join/leave operation for this Steam account.
+            _onlinePlayers.TryAdd(player.SteamId, 0);
             _playerOperations.TryGetValue(player.SteamId, out var previousOperation);
             _playerOperations[player.SteamId] = Task.Run(() => ConnectPlayerAsync(player.SteamId, player.Name, previousOperation));
         }
@@ -146,6 +163,7 @@ namespace SE.Roleplay.Framework.Torch
             if (player == null || player.SteamId == 0 || _context == null)
                 return;
 
+            _onlinePlayers.TryRemove(player.SteamId, out _);
             _playerOperations.TryGetValue(player.SteamId, out var pendingConnect);
             var disconnect = Task.Run(() => DisconnectPlayerAsync(player.SteamId, pendingConnect));
             _playerOperations[player.SteamId] = disconnect;
@@ -160,6 +178,112 @@ namespace SE.Roleplay.Framework.Torch
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
+        }
+
+
+        private void ConfigureDirectoryHeartbeat()
+        {
+            var directoryUrl = Environment.GetEnvironmentVariable("SERPF_DIRECTORY_URL");
+            var serverId = Environment.GetEnvironmentVariable("SERPF_SERVER_ID");
+            var apiKey = Environment.GetEnvironmentVariable("SERPF_SERVER_API_KEY");
+
+            if (string.IsNullOrWhiteSpace(directoryUrl) ||
+                string.IsNullOrWhiteSpace(serverId) ||
+                string.IsNullOrWhiteSpace(apiKey))
+            {
+                _context?.Logger.Info("Directory heartbeat is disabled. Set SERPF_DIRECTORY_URL, SERPF_SERVER_ID, and SERPF_SERVER_API_KEY to enable it.");
+                return;
+            }
+
+            if (!Uri.TryCreate(directoryUrl.TrimEnd('/') + "/api/servers/" +
+                Uri.EscapeDataString(serverId) + "/heartbeat", UriKind.Absolute, out var heartbeatUri) ||
+                heartbeatUri.Scheme != Uri.UriSchemeHttps)
+            {
+                _context?.Logger.Warn("Directory heartbeat is disabled because SERPF_DIRECTORY_URL must be a valid HTTPS URL.");
+                return;
+            }
+
+            var maxPlayersText = Environment.GetEnvironmentVariable("SERPF_SERVER_MAX_PLAYERS");
+            if (!int.TryParse(maxPlayersText, out _directoryMaxPlayers) ||
+                _directoryMaxPlayers < 1 || _directoryMaxPlayers > 10000)
+                _directoryMaxPlayers = 32;
+
+            var version = Environment.GetEnvironmentVariable("SERPF_SERVER_VERSION");
+            if (!string.IsNullOrWhiteSpace(version))
+                _directoryServerVersion = version.Length <= 80 ? version : version.Substring(0, 80);
+
+            _directoryHeartbeatUri = heartbeatUri;
+            _directoryApiKey = apiKey;
+            _directoryHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            _context?.Logger.Info("Directory heartbeat configured for server " + serverId + ".");
+        }
+
+        private void StartDirectoryHeartbeat()
+        {
+            if (_directoryHeartbeatUri == null || _directoryApiKey == null ||
+                _directoryHttpClient == null ||
+                (_directoryHeartbeatTask != null && !_directoryHeartbeatTask.IsCompleted))
+                return;
+
+            _directoryHeartbeatCancellation?.Dispose();
+            _directoryHeartbeatCancellation = new CancellationTokenSource();
+            var token = _directoryHeartbeatCancellation.Token;
+            _directoryHeartbeatTask = Task.Run(() => RunDirectoryHeartbeatAsync(token));
+        }
+
+        private async Task RunDirectoryHeartbeatAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var payload = new
+                    {
+                        players = _onlinePlayers.Count,
+                        maxPlayers = _directoryMaxPlayers,
+                        version = _directoryServerVersion
+                    };
+                    var json = JsonConvert.SerializeObject(payload);
+                    using (var request = new HttpRequestMessage(HttpMethod.Put, _directoryHeartbeatUri))
+                    {
+                        request.Headers.TryAddWithoutValidation("X-Server-Api-Key", _directoryApiKey);
+                        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                        using (var response = await _directoryHttpClient!.SendAsync(
+                            request, cancellationToken).ConfigureAwait(false))
+                        {
+                            if (!response.IsSuccessStatusCode)
+                                _context?.Logger.Warn("Directory heartbeat returned HTTP " +
+                                    (int)response.StatusCode + ".");
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _context?.Logger.Warn("Directory heartbeat failed: " + exception.Message);
+                }
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+
+        private void StopDirectoryHeartbeat()
+        {
+            var cancellation = _directoryHeartbeatCancellation;
+            if (cancellation == null)
+                return;
+
+            cancellation.Cancel();
         }
 
         private async Task ConnectPlayerAsync(ulong steamId, string playerName, Task? previousOperation)
@@ -224,6 +348,7 @@ namespace SE.Roleplay.Framework.Torch
                 _sessionManager.SessionStateChanged -= OnSessionStateChanged;
 
             DetachSession();
+            StopDirectoryHeartbeat();
 
             // Torch's plugin disposal is synchronous. Finish outstanding profile I/O before releasing services.
             try
@@ -235,6 +360,19 @@ namespace SE.Roleplay.Framework.Torch
             {
                 _context?.Logger.Error("An error occurred while flushing player data during plugin shutdown.", exception);
             }
+
+            try
+            {
+                _directoryHeartbeatTask?.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (AggregateException exception)
+            {
+                _context?.Logger.Warn("Directory heartbeat did not stop cleanly: " + exception.GetBaseException().Message);
+            }
+            _directoryHeartbeatCancellation?.Dispose();
+            _directoryHeartbeatCancellation = null;
+            _directoryHttpClient?.Dispose();
+            _directoryHttpClient = null;
 
             CharacterCommandModule.Framework = null;
             _context?.Logger.Info("Torch adapter stopped.");

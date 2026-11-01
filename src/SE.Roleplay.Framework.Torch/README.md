@@ -80,3 +80,22 @@ The server-side profile API exposed through `IFrameworkContext.Profiles` provide
 - Automatic save/unload on disconnect and periodic server autosave.
 
 The five-character limit is configured by `FrameworkOptions.MaximumCharactersPerPlayer` in the Torch adapter. Each server owner can set this independently.
+
+
+## Automatic server directory heartbeats
+
+The Torch adapter can publish live player counts to the self-hosted directory service. Configure these environment variables in the Torch server process before starting it:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SERPF_DIRECTORY_URL` | Yes | Base HTTPS URL of the directory service, for example `https://directory.example.net`. |
+| `SERPF_SERVER_ID` | Yes | Server ID returned when the server was registered with the directory API. |
+| `SERPF_SERVER_API_KEY` | Yes | Per-server API key returned at registration. Keep it private. |
+| `SERPF_SERVER_MAX_PLAYERS` | No | Advertised capacity; defaults to `32`. Valid range: 1–10000. |
+| `SERPF_SERVER_VERSION` | No | Version string displayed in the directory; defaults to `SE1`. |
+
+When the world is loaded, the plugin sends an immediate authenticated heartbeat and repeats every 30 seconds. It tracks players through Torch's existing `PlayerJoined` and `PlayerLeft` events. Heartbeats stop when the world unloads or the plugin is disposed. The directory marks the listing Offline after 90 seconds without a heartbeat.
+
+For safety, the adapter requires HTTPS and never logs the API key. Set the variables in the environment of the Torch process, not in a public launcher configuration or a committed file.
+
+**Player-count limitation:** the adapter counts join/leave events observed after it attaches to the session. If the plugin is loaded or reloaded while players are already connected, that initial count may be temporarily lower until those players reconnect. Verify the count against your exact Torch build during server smoke testing.
