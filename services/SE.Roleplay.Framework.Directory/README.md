@@ -78,3 +78,12 @@ The browser-binding cookie is `Secure`, `HttpOnly`, `SameSite=Lax`, and uses the
 When deployed behind a reverse proxy, configure forwarding only for explicitly trusted proxy addresses/networks and ensure the public endpoint enforces HTTPS. Do not trust arbitrary forwarded headers. Keep the public URL stable and identical to the HTTPS origin used for Steam callbacks.
 
 This milestone establishes sign-in only. It does not add owner registration, listing-management routes, logout, or an owner UI. The existing bootstrap-admin routes remain separate and must not be exposed through launcher configuration. The login state store and Steam nonce replay cache are process-local; use shared, atomic storage before running multiple directory instances.
+
+
+## Shared authentication database foundation
+
+The service now initializes a SQLite database at startup. Configure its location with `SERPF_DIRECTORY_AUTH_DB_PATH` or `Directory:AuthDatabasePath`; the default is `data/directory-auth.db` under the application base directory. The database uses WAL journaling, full synchronous durability, foreign-key enforcement, and a 10-second busy timeout.
+
+Schema version 1 reserves tables for Steam login states, desktop authorization states and codes, token families, access tokens, and refresh tokens. Token and state tables are designed to store hashes rather than raw bearer credentials or browser-session secrets. Expiry and family indexes support cleanup and revocation operations.
+
+**Important:** this change establishes and tests the database schema only. The current authentication stores are still process-local in-memory implementations. Do not run multiple directory instances yet; the next migration replaces those stores with SQLite-backed operations and adds cross-instance atomicity tests. The existing server directory JSON store also remains single-instance.
