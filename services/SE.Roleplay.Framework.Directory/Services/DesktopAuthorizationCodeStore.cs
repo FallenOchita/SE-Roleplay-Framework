@@ -68,10 +68,13 @@ public sealed class DesktopAuthorizationCodeStore
         }
     }
 
-    public bool DenyState(string state, string browserSession)
+    public bool DenyState(string state, string browserSession) =>
+        DenyAuthorization(state, browserSession) is not null;
+
+    public DesktopAuthorizationDenial? DenyAuthorization(string state, string browserSession)
     {
         if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(browserSession))
-            return false;
+            return null;
         var now = _clock.GetUtcNow();
         lock (_gate)
         {
@@ -79,8 +82,9 @@ public sealed class DesktopAuthorizationCodeStore
             var key = HashKey(state);
             if (!_states.TryGetValue(key, out var entry) || entry.ExpiresAt <= now ||
                 !CryptographicOperations.FixedTimeEquals(entry.BrowserHash, Hash(browserSession)))
-                return false;
-            return _states.Remove(key);
+                return null;
+            _states.Remove(key);
+            return new DesktopAuthorizationDenial(entry.RedirectUri, entry.ClientState);
         }
     }
 
@@ -164,3 +168,4 @@ public sealed class DesktopAuthorizationCodeStore
 
 public sealed record DesktopAuthorizationGrant(string SteamId64, string ClientId);
 public sealed record DesktopAuthorizationCompletion(string Code, string RedirectUri, string? ClientState);
+public sealed record DesktopAuthorizationDenial(string RedirectUri, string? ClientState);
