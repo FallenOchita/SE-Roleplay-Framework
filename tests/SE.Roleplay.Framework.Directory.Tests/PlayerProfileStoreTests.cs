@@ -93,6 +93,38 @@ public sealed class PlayerProfileStoreTests
     }
 
     [Fact]
+    public async Task ServerAdmissionRequiresValidServerKeyAndFailsClosedWhenAllowlistEnabled()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var (server, apiKey) = await fixture.Servers.RegisterOwnedAsync(CreateServerRequest("Admission"), Owner, CancellationToken.None);
+        var memberships = new ServerMembershipStore(fixture.Database, TimeProvider.System);
+
+        var disabledDefault = await memberships.GetAdmissionDecisionAsync(server.Id, apiKey, Player, CancellationToken.None);
+        Assert.NotNull(disabledDefault);
+        Assert.False(disabledDefault.AllowlistEnabled);
+        Assert.True(disabledDefault.ShouldAdmit);
+        Assert.Null(await memberships.GetAdmissionDecisionAsync(server.Id, "wrong-key", Player, CancellationToken.None));
+
+        Assert.True(await memberships.SetAllowlistEnabledAsync(server.Id, Owner, true, CancellationToken.None));
+        var denied = await memberships.GetAdmissionDecisionAsync(server.Id, apiKey, Player, CancellationToken.None);
+        Assert.NotNull(denied);
+        Assert.True(denied.AllowlistEnabled);
+        Assert.False(denied.IsAllowed);
+        Assert.False(denied.ShouldAdmit);
+
+        Assert.True(await memberships.AddMemberAsync(server.Id, Owner, Player, "approved", CancellationToken.None));
+        var admitted = await memberships.GetAdmissionDecisionAsync(server.Id, apiKey, Player, CancellationToken.None);
+        Assert.NotNull(admitted);
+        Assert.True(admitted.IsAllowed);
+        Assert.True(admitted.ShouldAdmit);
+
+        Assert.False(await memberships.SetAllowlistEnabledAsync(server.Id, Player, false, CancellationToken.None));
+        Assert.True(await memberships.SetAllowlistEnabledAsync(server.Id, Owner, false, CancellationToken.None));
+        var disabledAgain = await memberships.GetAdmissionDecisionAsync(server.Id, apiKey, Player, CancellationToken.None);
+        Assert.True(disabledAgain!.ShouldAdmit);
+    }
+
+    [Fact]
     public async Task InvalidProfileAndPermissionInputsAreRejected()
     {
         using var fixture = await Fixture.CreateAsync();
