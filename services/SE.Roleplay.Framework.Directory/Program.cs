@@ -45,8 +45,17 @@ builder.Services
         options.ExpireTimeSpan = TimeSpan.FromHours(12);
         options.SlidingExpiration = true;
         options.LoginPath = "/auth/steam/login";
+    })
+    .AddScheme<AuthenticationSchemeOptions, DesktopBearerAuthenticationHandler>(
+        DesktopBearerAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("LauncherBearer", policy =>
+    {
+        policy.AddAuthenticationSchemes(DesktopBearerAuthenticationHandler.SchemeName);
+        policy.RequireAuthenticatedUser();
     });
-builder.Services.AddAuthorization();
+});
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
@@ -135,6 +144,15 @@ app.MapPost("/oauth/token", (HttpContext context, DesktopTokenRequest request,
         return grant is null ? null : tokens.Issue(grant.SteamId64, grant.ClientId);
     }
 }).RequireRateLimiting("oauth-token");
+
+app.MapGet("/api/launcher/me", (ClaimsPrincipal user) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    var clientId = user.FindFirst("client_id")?.Value;
+    return steamId is null || clientId != DesktopTokenStore.RegisteredClientId
+        ? Results.Unauthorized()
+        : Results.Ok(new { steamId64 = steamId, clientId });
+}).RequireAuthorization("LauncherBearer");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "SE Roleplay Framework Directory" }));
 app.MapGet("/api/servers", async (ServerDirectoryStore store, CancellationToken cancellationToken) =>
