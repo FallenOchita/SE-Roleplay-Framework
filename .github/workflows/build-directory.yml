@@ -1,0 +1,18 @@
+name: Build directory service
+
+on:
+  push:
+    paths: ["services/SE.Roleplay.Framework.Directory/**", ".github/workflows/build-directory.yml"]
+  pull_request:
+    paths: ["services/SE.Roleplay.Framework.Directory/**", ".github/workflows/build-directory.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Build directory API
+        run: dotnet build services/SE.Roleplay.Framework.Directory/SE.Roleplay.Framework.Directory.csproj --configuration Release
