@@ -662,6 +662,31 @@ app.MapDelete("/api/launcher/owner/servers/{serverId}/members/{steamId64}", asyn
         ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
 
+// Game-server admission decisions are authenticated with the server's own API key.
+// Unknown servers and invalid keys intentionally share the same response.
+app.MapGet("/api/servers/{serverId}/admission/{steamId64}", async Task<IResult> (
+    string serverId, string steamId64, HttpContext context, ServerMembershipStore memberships,
+    CancellationToken cancellationToken) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key))
+        return Results.Unauthorized();
+    var decision = await memberships.GetAdmissionDecisionAsync(
+        serverId, key.ToString(), steamId64, cancellationToken);
+    return decision is null ? Results.Unauthorized() : Results.Ok(decision);
+});
+
+// Only the authenticated owner can enable or disable enforcement.
+app.MapPut("/api/launcher/owner/servers/{serverId}/admission", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, UpdateServerAdmissionSettingsRequest request,
+    ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    return await memberships.SetAllowlistEnabledAsync(
+        serverId, ownerSteamId, request.AllowlistEnabled, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
+
 app.Run();
 
 static Uri? GetPublicBaseUrl(IConfiguration configuration)
