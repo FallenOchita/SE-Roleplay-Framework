@@ -131,6 +131,8 @@ public sealed class DirectoryAuthDatabase
 
             INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
                 VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+            INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
+                VALUES (2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
