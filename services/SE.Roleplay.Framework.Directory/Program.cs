@@ -17,6 +17,7 @@ const string SteamLoginPolicy = "steam-login";
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
+builder.Services.AddSingleton<PlayerProfileStore>();
 builder.Services.AddSingleton<DirectoryAuthDatabase>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.Services.AddSingleton<DesktopTokenStore>();
@@ -112,6 +113,17 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy("player-writes", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            (context.Connection.RemoteIpAddress?.ToString() ?? "unknown") + ":" +
+            (context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous"),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -475,6 +487,74 @@ app.MapPost("/auth/logout", async Task<IResult> (
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     context.Response.Cookies.Delete(BrowserCookieName, BrowserCookieOptions());
     return Results.NoContent();
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+// Player identity is always derived from the validated launcher bearer token.
+app.MapGet("/api/player/profile", async Task<IResult> (
+    ClaimsPrincipal user, PlayerProfileStore profiles, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var profile = await profiles.GetProfileAsync(steamId, cancellationToken);
+    return profile is null ? Results.Unauthorized() : Results.Ok(profile);
+}).RequireAuthorization("LauncherBearer");
+
+app.MapPut("/api/player/profile", async Task<IResult> (
+    ClaimsPrincipal user, UpdatePlayerProfileRequest request, PlayerProfileStore profiles,
+    CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var profile = await profiles.UpdateProfileAsync(steamId, request, cancellationToken);
+    return profile is null
+        ? Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["profile"] = new[] { "Display name is required (maximum 40 characters); biography must be 500 characters or fewer." } })
+        : Results.Ok(profile);
+}).RequireAuthorization("LauncherBearer").RequireRateLimiting("player-writes");
+
+app.MapGet("/api/servers/{serverId}/permissions/me", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, PlayerProfileStore profiles, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var permissions = await profiles.GetPermissionsAsync(serverId, steamId, cancellationToken);
+    return Results.Ok(new { serverId, steamId64 = steamId, permissions });
+}).RequireAuthorization("LauncherBearer");
+
+app.MapPost("/api/owner/servers/{serverId}/players/permissions", async Task<IResult> (
+    string serverId, HttpContext context, GrantPlayerPermissionRequest request,
+    PlayerProfileStore profiles, IAntiforgery antiforgery, IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    if (!PlayerProfileStore.IsValidSteamId64(request.SteamId64) ||
+        !PlayerProfileStore.IsValidPermission(request.Permission))
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["permission"] = new[] { "A valid SteamID64 and lowercase permission key are required." } });
+    if (request.ExpiresAtUtc is not null &&
+        (request.ExpiresAtUtc <= DateTime.UtcNow || request.ExpiresAtUtc > DateTime.UtcNow.AddDays(365)))
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["expiresAtUtc"] = new[] { "Expiry must be in the future and no more than 365 days away." } });
+    var granted = await profiles.GrantPermissionAsync(
+        serverId, ownerSteamId, request.SteamId64, request.Permission, request.ExpiresAtUtc, cancellationToken);
+    return granted ? Results.Ok(new { granted = true }) : Results.NotFound();
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+app.MapDelete("/api/owner/servers/{serverId}/players/permissions", async Task<IResult> (
+    string serverId, string steamId64, string permission, HttpContext context,
+    PlayerProfileStore profiles, IAntiforgery antiforgery, IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    var revoked = await profiles.RevokePermissionAsync(
+        serverId, ownerSteamId, steamId64, permission, cancellationToken);
+    return revoked ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization().RequireRateLimiting("owner-writes");
 
 app.Run();
