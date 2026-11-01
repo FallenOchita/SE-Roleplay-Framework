@@ -21,8 +21,8 @@ public sealed class DirectoryServer
     public string DiscordUrl { get; set; } = string.Empty;
     public string RulesUrl { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public string ApiKeyHash { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ApiKeyHash { get; set; }
     public DateTime LastHeartbeatUtc { get; set; }
 }
 
