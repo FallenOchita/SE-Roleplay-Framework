@@ -5,7 +5,7 @@
  <Application.Resources>
   <Color x:Key="Bg">#101419</Color><Color x:Key="Panel">#192129</Color><Color x:Key="Alt">#202B35</Color><Color x:Key="Accent">#35C58A</Color>
   <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource Bg}"/><SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}"/><SolidColorBrush x:Key="AltBrush" Color="{StaticResource Alt}"/><SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}"/><SolidColorBrush x:Key="TextBrush" Color="#F1F5F7"/><SolidColorBrush x:Key="MutedBrush" Color="#9AA8B4"/>
-  <Style TargetType="Button"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="{StaticResource AltBrush}"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,9"/><Setter Property="Margin" Value="0,4,8,4"/></Style>
+  <Style TargetType="Button"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/><Setter Property="Background" Value="{StaticResource AltBrush}"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="14,9"/><Setter Property="Margin" Value="0,4,8,4"/><Setter Property="Cursor" Value="Hand"/></Style>
   <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></Style>
  </Application.Resources>
 </Application>
