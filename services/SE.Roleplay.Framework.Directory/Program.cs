@@ -13,7 +13,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "SE Rolepl
 app.MapGet("/api/servers", async (ServerDirectoryStore store, CancellationToken cancellationToken) =>
     Results.Ok(new { servers = await store.GetPublicServersAsync(cancellationToken) }));
 
-app.MapPost("/api/admin/servers", async (HttpContext context, RegisterServerRequest request, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapPost("/api/admin/servers", async Task<IResult> (HttpContext context, RegisterServerRequest request, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!IsAdmin(context, configuration)) return Results.Unauthorized();
     if (!IsValidRegistration(request, out var error))
@@ -27,7 +27,7 @@ app.MapPost("/api/admin/servers", async (HttpContext context, RegisterServerRequ
     });
 });
 
-app.MapPut("/api/servers/{id}/heartbeat", async (string id, HttpContext context, HeartbeatRequest request, ServerDirectoryStore store, CancellationToken cancellationToken) =>
+app.MapPut("/api/servers/{id}/heartbeat", async Task<IResult> (string id, HttpContext context, HeartbeatRequest request, ServerDirectoryStore store, CancellationToken cancellationToken) =>
 {
     if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key)) return Results.Unauthorized();
     if (request.Players < 0 || request.MaxPlayers < 1 || request.MaxPlayers > 10000 || request.Players > request.MaxPlayers)
@@ -36,7 +36,7 @@ app.MapPut("/api/servers/{id}/heartbeat", async (string id, HttpContext context,
     return updated ? Results.NoContent() : Results.Unauthorized();
 });
 
-app.MapDelete("/api/admin/servers/{id}", async (string id, HttpContext context, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
+app.MapDelete("/api/admin/servers/{id}", async Task<IResult> (string id, HttpContext context, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
     if (!IsAdmin(context, configuration)) return Results.Unauthorized();
     return await store.DeleteAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
@@ -61,7 +61,7 @@ static bool IsValidRegistration(RegisterServerRequest request, out string error)
     else if (!IPAddress.TryParse(request.Address, out _) && Uri.CheckHostName(request.Address) != UriHostNameType.Dns) error = "Address must be an IP address or DNS hostname.";
     else if (request.Port is < 1 or > 65535) error = "Port must be between 1 and 65535.";
     else if (request.MaxPlayers is < 1 or > 10000) error = "MaxPlayers must be between 1 and 10000.";
-    else if (request.Tags.Count > 20 || request.Tags.Any(tag => tag.Length > 40)) error = "A maximum of 20 tags, each 40 characters or fewer, is allowed.";
+    else if (request.Tags == null || request.Tags.Count > 20 || request.Tags.Any(tag => tag == null || tag.Length > 40)) error = "A maximum of 20 tags, each 40 characters or fewer, is allowed.";
     return error.Length == 0;
 }
 
