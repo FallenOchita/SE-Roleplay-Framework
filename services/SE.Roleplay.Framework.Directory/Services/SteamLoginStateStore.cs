@@ -29,7 +29,7 @@ public sealed class SteamLoginStateStore
     {
         ValidateBrowserSessionId(browserSessionId);
         var state = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-        var stateHash = Hash(state);
+        var stateHash = Convert.ToHexString(Hash(state));
         var sessionHash = Hash(browserSessionId);
         var entry = new Entry(sessionHash, _timeProvider.GetUtcNow().Add(_lifetime));
 
@@ -40,7 +40,7 @@ public sealed class SteamLoginStateStore
             while (!_entries.TryAdd(stateHash, entry))
             {
                 state = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-                stateHash = Hash(state);
+                stateHash = Convert.ToHexString(Hash(state));
             }
         }
 
@@ -56,7 +56,7 @@ public sealed class SteamLoginStateStore
         if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(browserSessionId))
             return false;
 
-        var stateHash = Hash(state);
+        var stateHash = Convert.ToHexString(Hash(state));
         var sessionHash = Hash(browserSessionId);
         var now = _timeProvider.GetUtcNow();
 
