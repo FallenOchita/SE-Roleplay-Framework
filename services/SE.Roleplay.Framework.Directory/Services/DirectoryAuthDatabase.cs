@@ -33,6 +33,9 @@ public sealed class DirectoryAuthDatabase
         }.ToString();
     }
 
+    /// <summary>Creates a new connection to the configured shared authentication database.</summary>
+    public SqliteConnection CreateConnection() => new(_connectionString);
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = new SqliteConnection(_connectionString);
