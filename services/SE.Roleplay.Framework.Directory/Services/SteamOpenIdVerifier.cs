@@ -48,7 +48,9 @@ public sealed class SteamOpenIdVerifier
             !string.Equals(returnUri.AbsoluteUri, expectedReturnTo, StringComparison.Ordinal))
             return null;
 
-        if (!TryGet(assertion, "openid.mode", out var mode) || mode != "id_res" ||
+        if (!TryGet(assertion, "openid.ns", out var openIdNamespace) ||
+            openIdNamespace != "http://specs.openid.net/auth/2.0" ||
+            !TryGet(assertion, "openid.mode", out var mode) || mode != "id_res" ||
             !TryGet(assertion, "openid.op_endpoint", out var endpoint) ||
             !string.Equals(endpoint, SteamOpenIdEndpoint, StringComparison.Ordinal) ||
             !TryGet(assertion, "openid.return_to", out var returnedTo) ||
