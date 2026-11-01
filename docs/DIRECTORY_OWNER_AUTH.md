@@ -85,3 +85,12 @@ Add nullable `OwnerSteamId64` to directory records. Existing JSON documents dese
 6. Build an owner-management UI in the launcher only after the service API is validated.
 
 No production owner-registration route should be enabled until the OpenID verifier, state/replay protections, owner authorization tests, and HTTPS deployment requirements are in place.
+
+## Implementation status
+
+- Complete: Steam OpenID assertion verification, browser-bound single-use login state, HTTPS-only login redirect configuration, protected cookie sign-in, and persisted Data Protection keys.
+- In progress: nullable `OwnerSteamId64` persistence and owner-scoped store operations. These operations compare the verified SteamID64 and perform authorization and mutation under the same store gate. Public-feed projections omit owner identity and API-key hashes.
+- Not yet enabled: owner HTTP routes, logout, antiforgery/Origin validation, owner portal, and launcher owner UI. Do not expose owner-management routes until browser CSRF protections, rate limits, request validation, route integration tests, and owner-isolation tests are complete.
+- Legacy records remain ownerless. No automatic claim or transfer is performed.
+
+The current JSON store remains single-process only. A multi-instance deployment must move ownership and key updates to shared transactional storage with atomic authorization checks.
