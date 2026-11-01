@@ -109,6 +109,82 @@ public sealed class OwnerApiIntegrationTests
         Assert.DoesNotContain("ownerSteamId64", responseText, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task OwnerCanUpdateOwnListing()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateOwnerClient(OwnerA);
+        var created = await RegisterAsync(client);
+        var id = created.GetProperty("id").GetString()!;
+
+        var update = await SendProtectedAsync(client, HttpMethod.Put, $"/api/owner/servers/{id}", Registration("Updated server"));
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var list = await client.GetAsync("/api/owner/servers");
+        list.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        var server = Assert.Single(document.RootElement.GetProperty("servers").EnumerateArray());
+        Assert.Equal("Updated server", server.GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task OwnerCanRotateOwnKeyAndOldKeyStopsWorking()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateOwnerClient(OwnerA);
+        var created = await RegisterAsync(client);
+        var id = created.GetProperty("id").GetString()!;
+        var oldKey = created.GetProperty("apiKey").GetString()!;
+
+        var oldHeartbeat = await SendHeartbeatAsync(client, id, oldKey);
+        Assert.Equal(HttpStatusCode.NoContent, oldHeartbeat.StatusCode);
+
+        var rotation = await SendProtectedAsync(client, HttpMethod.Post, $"/api/owner/servers/{id}/rotate-key");
+        Assert.Equal(HttpStatusCode.OK, rotation.StatusCode);
+        using var rotationJson = JsonDocument.Parse(await rotation.Content.ReadAsStringAsync());
+        var newKey = rotationJson.RootElement.GetProperty("apiKey").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(newKey));
+        Assert.NotEqual(oldKey, newKey);
+
+        var rejectedOldHeartbeat = await SendHeartbeatAsync(client, id, oldKey);
+        var acceptedNewHeartbeat = await SendHeartbeatAsync(client, id, newKey!);
+        Assert.Equal(HttpStatusCode.Unauthorized, rejectedOldHeartbeat.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, acceptedNewHeartbeat.StatusCode);
+
+        var list = await client.GetAsync("/api/owner/servers");
+        list.EnsureSuccessStatusCode();
+        var listText = await list.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(oldKey, listText, StringComparison.Ordinal);
+        Assert.DoesNotContain(newKey!, listText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OwnerCanDeleteOwnListing()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var client = factory.CreateOwnerClient(OwnerA);
+        var created = await RegisterAsync(client);
+        var id = created.GetProperty("id").GetString()!;
+
+        var deleted = await SendProtectedAsync(client, HttpMethod.Delete, $"/api/owner/servers/{id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        var list = await client.GetAsync("/api/owner/servers");
+        list.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        Assert.Empty(document.RootElement.GetProperty("servers").EnumerateArray());
+    }
+
+    private static async Task<HttpResponseMessage> SendHeartbeatAsync(HttpClient client, string id, string apiKey)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/servers/{id}/heartbeat")
+        {
+            Content = JsonContent.Create(new { players = 1, maxPlayers = 32, version = "integration-test" })
+        };
+        request.Headers.Add("X-Server-Api-Key", apiKey);
+        return await client.SendAsync(request);
+    }
+
     private static object Registration(string name) => new
     {
         name,
