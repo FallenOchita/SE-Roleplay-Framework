@@ -3,9 +3,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Globalization;
-using SE.Roleplay.Framework.Core.Identity;
-using SE.Roleplay.Framework.Core.Persistence;
 using SE.Roleplay.Framework.Launcher.Models;
 using SE.Roleplay.Framework.Launcher.Services;
 
@@ -18,10 +15,6 @@ public partial class MainWindow : Window
     private readonly GameInstallDetector _gameDetector = new();
     private readonly ServerDirectoryClient _directoryClient = new();
     private readonly SteamOpenIdService _steamSignIn = new();
-    private readonly PlayerIdentityService _identityService = new();
-    private PlayerProfileService? _profileService;
-    private PlayerRecord? _playerProfile;
-    private const int MaximumCharactersPerPlayer = 5;
     private readonly ObservableCollection<ServerListing> _servers = new();
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
     private readonly ObservableCollection<ServerListing> _recentServers = new();
@@ -54,8 +47,6 @@ public partial class MainWindow : Window
                 _recentServers.Add(server);
 
             UpdateSteamStatus();
-            if (!string.IsNullOrWhiteSpace(_settings.SteamId64))
-                await LoadPlayerProfileAsync();
             UpdateHomeEmptyStates();
             UpdateGameStatus();
 
@@ -149,136 +140,8 @@ public partial class MainWindow : Window
         {
             SteamSignInButton.IsEnabled = true;
             UpdateSteamStatus();
-            if (!string.IsNullOrWhiteSpace(_settings.SteamId64))
-                await LoadPlayerProfileAsync();
         }
     }
-
-    private async Task LoadPlayerProfileAsync()
-    {
-        if (!ulong.TryParse(_settings.SteamId64, NumberStyles.None, CultureInfo.InvariantCulture, out var steamId) || steamId == 0)
-        {
-            CharacterProfileStatusText.Text = "Your Steam account ID is invalid. Sign in again to load your profile.";
-            CreateCharacterButton.IsEnabled = false;
-            return;
-        }
-
-        try
-        {
-            if (!_identityService.TryGet(steamId, out _))
-                _identityService.Connect(steamId, "Steam Player");
-
-            var profileDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "SE1Roleplay",
-                "PlayerProfiles");
-            var store = new JsonPlayerDataStore(profileDirectory);
-            _profileService = new PlayerProfileService(store, _identityService, MaximumCharactersPerPlayer);
-            _playerProfile = await _profileService.LoadAsync(steamId, "Steam Player");
-            CharacterProfileStatusText.Text = $"Profile loaded for Steam account {steamId}. Characters are saved locally on this PC.";
-            CreateCharacterButton.IsEnabled = true;
-            await RefreshCharactersAsync();
-        }
-        catch (Exception ex)
-        {
-            CharacterProfileStatusText.Text = $"Could not load your character profile: {ex.Message}";
-            CreateCharacterButton.IsEnabled = false;
-        }
-    }
-
-    private async Task RefreshCharactersAsync(Guid? selectCharacterId = null)
-    {
-        if (_profileService is null || _playerProfile is null)
-            return;
-
-        var characters = await _profileService.GetCharactersAsync(_playerProfile.PlatformId);
-        CharacterList.ItemsSource = characters;
-        CharacterCountText.Text = $"{characters.Count} / {MaximumCharactersPerPlayer}";
-        CharacterEmptyText.Visibility = characters.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        CreateCharacterButton.IsEnabled = characters.Count < MaximumCharactersPerPlayer;
-        if (selectCharacterId.HasValue)
-            CharacterList.SelectedItem = characters.FirstOrDefault(c => c.CharacterId == selectCharacterId.Value);
-        else if (_playerProfile.SelectedCharacterId.HasValue)
-            CharacterList.SelectedItem = characters.FirstOrDefault(c => c.CharacterId == _playerProfile.SelectedCharacterId.Value);
-
-        UpdateCharacterButtons();
-    }
-
-    private void UpdateCharacterButtons()
-    {
-        var hasSelection = CharacterList.SelectedItem is PlayerCharacter;
-        SelectCharacterButton.IsEnabled = hasSelection;
-        DeleteCharacterButton.IsEnabled = hasSelection;
-    }
-
-    private async void CreateCharacter_Click(object sender, RoutedEventArgs e)
-    {
-        if (_profileService is null || _playerProfile is null) return;
-        try
-        {
-            var name = CharacterNameBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                MessageBox.Show("Enter a character name first.", "Character name required", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var character = await _profileService.CreateCharacterAsync(
-                _playerProfile.PlatformId, name, CharacterDescriptionBox.Text);
-            _playerProfile.SelectedCharacterId = character.CharacterId;
-            CharacterNameBox.Clear();
-            CharacterDescriptionBox.Clear();
-            CharacterProfileStatusText.Text = $"Created {character.Name}. Your profile has been saved.";
-            await RefreshCharactersAsync(character.CharacterId);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Could not create character: {ex.Message}", "Character creation failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private async void SelectCharacter_Click(object sender, RoutedEventArgs e)
-    {
-        if (_profileService is null || _playerProfile is null || CharacterList.SelectedItem is not PlayerCharacter character) return;
-        try
-        {
-            await _profileService.SelectCharacterAsync(_playerProfile.PlatformId, character.CharacterId);
-            _playerProfile.SelectedCharacterId = character.CharacterId;
-            CharacterProfileStatusText.Text = $"Active character: {character.Name}. This selection is saved to your profile.";
-            await RefreshCharactersAsync(character.CharacterId);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Could not select character: {ex.Message}", "Character selection failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private async void DeleteCharacter_Click(object sender, RoutedEventArgs e)
-    {
-        if (_profileService is null || _playerProfile is null || CharacterList.SelectedItem is not PlayerCharacter character) return;
-        var answer = MessageBox.Show(
-            $"Delete the character '{character.Name}'? This cannot be undone.",
-            "Delete character",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (answer != MessageBoxResult.Yes) return;
-
-        try
-        {
-            await _profileService.DeleteCharacterAsync(_playerProfile.PlatformId, character.CharacterId);
-            _playerProfile.SelectedCharacterId = _identityService.TryGet(_playerProfile.PlatformId, out var identity)
-                ? identity.CharacterId : null;
-            CharacterProfileStatusText.Text = $"Deleted {character.Name}.";
-            await RefreshCharactersAsync(_playerProfile.SelectedCharacterId);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Could not delete character: {ex.Message}", "Character deletion failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
-    private void CharacterList_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
-        UpdateCharacterButtons();
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
