@@ -23,3 +23,16 @@ The adapter references local Torch and game assemblies via `TorchLibPath` and `G
 - Restore persisted permission grants into the in-memory permission service.
 - Add a dedicated integration test harness for Torch session and player events.
 - Verify plugin dependency packaging and Newtonsoft.Json assembly resolution on the target Torch build.
+
+
+## Directory service heartbeat
+
+The Torch adapter supports the directory API using process environment variables:
+
+- `SERPF_DIRECTORY_URL` — HTTPS base URL of the directory service.
+- `SERPF_SERVER_ID` — registered server ID.
+- `SERPF_SERVER_API_KEY` — secret per-server API key.
+- `SERPF_SERVER_MAX_PLAYERS` — optional advertised capacity (default 32).
+- `SERPF_SERVER_VERSION` — optional version label (default SE1).
+
+It sends an immediate heartbeat and then one every 30 seconds while the world is loaded. Player counts are maintained from Torch join/leave events. No API key is stored in the launcher or repository. See the Torch adapter README for setup and the current-session tracking limitation.
