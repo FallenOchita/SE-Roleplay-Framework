@@ -61,6 +61,38 @@ public sealed class PlayerProfileStoreTests
     }
 
     [Fact]
+    public async Task ServerAllowlistIsPersistentAndOnlyTheOwnerCanManageIt()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var (server, _) = await fixture.Servers.RegisterOwnedAsync(CreateServerRequest("Allowlist"), Owner, CancellationToken.None);
+        var memberships = new ServerMembershipStore(fixture.Database, TimeProvider.System);
+
+        Assert.False((await memberships.GetStatusAsync(server.Id, Player, CancellationToken.None)).IsAllowed);
+        Assert.False(await memberships.AddMemberAsync(server.Id, Player, Owner, "unauthorized", CancellationToken.None));
+        Assert.True(await memberships.AddMemberAsync(server.Id, Owner, Player, "approved roleplay member", CancellationToken.None));
+        Assert.True((await memberships.GetStatusAsync(server.Id, Player, CancellationToken.None)).IsAllowed);
+        Assert.Single(await memberships.GetMembersAsync(server.Id, Owner, CancellationToken.None));
+        Assert.Empty(await memberships.GetMembersAsync(server.Id, Player, CancellationToken.None));
+
+        var secondInstance = new ServerMembershipStore(fixture.Database, TimeProvider.System);
+        Assert.True((await secondInstance.GetStatusAsync(server.Id, Player, CancellationToken.None)).IsAllowed);
+        Assert.False(await secondInstance.RemoveMemberAsync(server.Id, Player, Player, CancellationToken.None));
+        Assert.True(await secondInstance.RemoveMemberAsync(server.Id, Owner, Player, CancellationToken.None));
+        Assert.False((await memberships.GetStatusAsync(server.Id, Player, CancellationToken.None)).IsAllowed);
+    }
+
+    [Fact]
+    public async Task ServerAllowlistRejectsInvalidSteamIdsAndOversizedNotes()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var (server, _) = await fixture.Servers.RegisterOwnedAsync(CreateServerRequest("Validation"), Owner, CancellationToken.None);
+        var memberships = new ServerMembershipStore(fixture.Database, TimeProvider.System);
+
+        Assert.False(await memberships.AddMemberAsync(server.Id, Owner, "bad-id", "", CancellationToken.None));
+        Assert.False(await memberships.AddMemberAsync(server.Id, Owner, Player, new string('x', 201), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task InvalidProfileAndPermissionInputsAreRejected()
     {
         using var fixture = await Fixture.CreateAsync();
