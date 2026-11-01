@@ -175,6 +175,98 @@ app.MapDelete("/api/admin/servers/{id}", async Task<IResult> (string id, HttpCon
     return await store.DeleteAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound();
 });
 
+
+app.MapGet("/api/owner/csrf", (HttpContext context, IAntiforgery antiforgery) =>
+{
+    var tokens = antiforgery.GetAndStoreTokens(context);
+    return Results.Ok(new { requestToken = tokens.RequestToken, headerName = "X-CSRF-TOKEN" });
+}).RequireAuthorization();
+
+app.MapGet("/api/owner/me", (ClaimsPrincipal user) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    return steamId is null ? Results.Unauthorized() : Results.Ok(new { steamId64 = steamId });
+}).RequireAuthorization();
+
+app.MapGet("/api/owner/servers", async Task<IResult> (
+    ClaimsPrincipal user, ServerDirectoryStore store, CancellationToken cancellationToken) =>
+{
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (steamId is null) return Results.Unauthorized();
+    var servers = await store.GetOwnedServersAsync(steamId, cancellationToken);
+    return Results.Ok(new { servers });
+}).RequireAuthorization();
+
+app.MapPost("/api/owner/servers", async Task<IResult> (
+    HttpContext context, RegisterServerRequest request, ServerDirectoryStore store,
+    IAntiforgery antiforgery, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (steamId is null) return Results.Unauthorized();
+    if (!IsValidRegistration(request, out var error))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = new[] { error } });
+    var (server, apiKey) = await store.RegisterOwnedAsync(request, steamId, cancellationToken);
+    return Results.Created($"/api/owner/servers/{server.Id}", new
+    {
+        server.Id, server.Name, server.Address, server.Port, apiKey,
+        message = "Store this API key securely. It is returned only once."
+    });
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+app.MapPut("/api/owner/servers/{id}", async Task<IResult> (
+    string id, HttpContext context, RegisterServerRequest request, ServerDirectoryStore store,
+    IAntiforgery antiforgery, IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (steamId is null) return Results.Unauthorized();
+    if (!IsValidRegistration(request, out var error))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["server"] = new[] { error } });
+    return await store.UpdateOwnedAsync(id, steamId, request, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+app.MapDelete("/api/owner/servers/{id}", async Task<IResult> (
+    string id, HttpContext context, ServerDirectoryStore store, IAntiforgery antiforgery,
+    IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (steamId is null) return Results.Unauthorized();
+    return await store.DeleteOwnedAsync(id, steamId, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+app.MapPost("/api/owner/servers/{id}/rotate-key", async Task<IResult> (
+    string id, HttpContext context, ServerDirectoryStore store, IAntiforgery antiforgery,
+    IConfiguration configuration, CancellationToken cancellationToken) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    var steamId = OwnerRequestSecurity.GetVerifiedSteamId(context.User);
+    if (steamId is null) return Results.Unauthorized();
+    var apiKey = await store.RotateOwnedApiKeyAsync(id, steamId, cancellationToken);
+    return apiKey is null ? Results.NotFound() : Results.Ok(new
+    {
+        apiKey,
+        message = "Store this API key securely. It is returned only once."
+    });
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
+app.MapPost("/auth/logout", async Task<IResult> (
+    HttpContext context, IAntiforgery antiforgery, IConfiguration configuration) =>
+{
+    if (!await OwnerRequestSecurity.ValidateMutationAsync(context, antiforgery, GetPublicBaseUrl(configuration)))
+        return Results.BadRequest(new { error = "A valid same-origin request and antiforgery token are required." });
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    context.Response.Cookies.Delete(BrowserCookieName, BrowserCookieOptions());
+    return Results.NoContent();
+}).RequireAuthorization().RequireRateLimiting("owner-writes");
+
 app.Run();
 
 static Uri? GetPublicBaseUrl(IConfiguration configuration)
