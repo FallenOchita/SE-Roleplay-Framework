@@ -9,7 +9,8 @@ Requires the .NET 8 SDK/runtime.
 Set these environment variables before starting:
 
 - SERPF_DIRECTORY_ADMIN_KEY — a long, random secret used for registration/deletion.
-- SERPF_DIRECTORY_DATA_PATH — optional path for the JSON data file.
+- SERPF_DIRECTORY_AUTH_DB_PATH — optional path for the shared SQLite database (authentication and server listings).
+- SERPF_DIRECTORY_DATA_PATH — optional path to an existing legacy JSON data file; it is imported once and then left untouched.
 
 Run:
 
@@ -58,7 +59,9 @@ Listings become Offline when no heartbeat has been received for 90 seconds. A To
 - Put the service behind HTTPS; never send API keys over plaintext remote HTTP.
 - Server API keys are generated cryptographically, stored as SHA-256 hashes, and compared using fixed-time verification.
 - The public feed never includes credential hashes.
-- The JSON store uses a process-local async lock and atomic file replacement. Run one service instance per data file; use a shared database before horizontal scaling.
+- Server listings, owner associations, and API-key hashes are stored in the shared SQLite database. Each mutation is a database statement or transaction, so independent service instances do not overwrite one another's updates.
+- On first startup after this migration, an existing file at `SERPF_DIRECTORY_DATA_PATH` (or `Directory:DataPath`) is imported once per database and source path. The source JSON is retained as a backup and is not modified. Malformed legacy JSON stops startup rather than silently discarding listings; fix or restore the file before restarting.
+- Set `SERPF_DIRECTORY_AUTH_DB_PATH` to the same durable shared database location for all service instances. SQLite should be placed on storage with reliable local filesystem locking; do not assume arbitrary network filesystems are safe for SQLite WAL.
 
 ## Steam login state groundwork
 
@@ -87,3 +90,12 @@ The service now initializes a SQLite database at startup. Configure its location
 Schema version 2 includes tables for Steam login states and nonce replay records, desktop authorization states and codes, token families, access tokens, and refresh tokens. Version 2 adds the shared Steam OpenID nonce replay table to existing version 1 installations. OAuth state, browser-session, authorization-code, access-token, refresh-token, and Steam nonce values are stored only as SHA-256 hashes; expiry and family indexes support cleanup and revocation.
 
 **Important:** SQLite now backs Steam login states, desktop OAuth authorization states/codes, and launcher access/refresh tokens. Refresh-token rotation is atomic across instances; replay of a consumed refresh token revokes the entire token family, including access tokens. The server directory JSON store remains process-local/single-instance. The directory service as a whole is not yet safe for multi-instance deployment.
+
+
+## SQLite server directory storage
+
+Schema version 3 adds the `directory_servers` table and indexes for owner and public-name queries. It also adds `directory_server_imports`, which records one-time legacy imports. The existing `Directory:AuthDatabasePath` / `SERPF_DIRECTORY_AUTH_DB_PATH` setting is the single database location for login/OAuth security state and server listings.
+
+The service initializes the database and imports the configured legacy JSON file before accepting requests. Imports preserve server IDs, ownership, heartbeat values, tags, and API-key hashes; duplicate IDs already present in SQLite are left unchanged. A failed import rolls back its import marker and inserted rows together, so startup can be safely retried. The JSON file is never deleted or rewritten.
+
+All directory operations now use SQLite: public and owner reads, registration, owner-scoped updates/deletes, API-key rotation, heartbeats, and administrative deletion. API-key hashes remain SHA-256 digests and are checked with fixed-time comparison. Owner checks are enforced in the SQL mutation predicates, not by trusting client-supplied owner IDs.

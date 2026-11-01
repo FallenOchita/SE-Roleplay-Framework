@@ -124,6 +124,7 @@ var app = builder.Build();
 
 // Create/upgrade the shared authentication database before serving requests.
 await app.Services.GetRequiredService<DirectoryAuthDatabase>().InitializeAsync();
+await app.Services.GetRequiredService<ServerDirectoryStore>().InitializeAsync();
 if (!app.Environment.IsDevelopment())
     app.UseHsts();
 app.UseHttpsRedirection();

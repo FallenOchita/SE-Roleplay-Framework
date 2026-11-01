@@ -133,6 +133,38 @@ public sealed class DirectoryAuthDatabase
                 VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
                 VALUES (2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+            CREATE TABLE IF NOT EXISTS directory_servers (
+                id TEXT PRIMARY KEY,
+                owner_steam_id64 TEXT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                address TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                players INTEGER NOT NULL,
+                max_players INTEGER NOT NULL,
+                region TEXT NOT NULL,
+                status TEXT NOT NULL,
+                version TEXT NOT NULL,
+                website_url TEXT NOT NULL,
+                discord_url TEXT NOT NULL,
+                rules_url TEXT NOT NULL,
+                tags_json TEXT NOT NULL,
+                api_key_hash TEXT NULL,
+                last_heartbeat_utc TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_directory_servers_owner
+                ON directory_servers(owner_steam_id64);
+            CREATE INDEX IF NOT EXISTS ix_directory_servers_name
+                ON directory_servers(name COLLATE NOCASE);
+
+            CREATE TABLE IF NOT EXISTS directory_server_imports (
+                source_path TEXT PRIMARY KEY,
+                imported_at_utc TEXT NOT NULL
+            );
+
+            INSERT OR IGNORE INTO schema_migrations(version, applied_at_utc)
+                VALUES (3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
