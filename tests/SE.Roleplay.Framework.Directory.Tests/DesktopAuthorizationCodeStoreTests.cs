@@ -45,13 +45,12 @@ public sealed class DesktopAuthorizationCodeStoreTests
     {
         var store = new DesktopAuthorizationCodeStore();
         var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
-        var state = store.CreateState(Client, Redirect, Challenge(verifier), Browser);
-        var code = store.CompleteState(state, Browser, SteamId)!;
-
-        Assert.Null(store.RedeemCode(code, "another-client", Redirect, verifier));
-        Assert.Null(store.RedeemCode(code, Client, Redirect + "/changed", verifier));
-        Assert.Null(store.RedeemCode(code, Client, Redirect, verifier + "wrong"));
-        Assert.Null(store.RedeemCode(code, Client, Redirect, verifier));
+        Assert.Null(CreateCode(store, verifier, Client, Redirect)
+            .Redeem(store, "another-client", Redirect, verifier));
+        Assert.Null(CreateCode(store, verifier, Client, Redirect)
+            .Redeem(store, Client, Redirect + "/changed", verifier));
+        Assert.Null(CreateCode(store, verifier, Client, Redirect)
+            .Redeem(store, Client, Redirect, verifier + "wrong"));
     }
 
     [Fact]
@@ -101,6 +100,44 @@ public sealed class DesktopAuthorizationCodeStoreTests
         Assert.False(DesktopAuthorizationCodeStore.IsLoopbackRedirect("http://127.0.0.2:49152/oauth/callback/test"));
         Assert.False(DesktopAuthorizationCodeStore.IsLoopbackRedirect("http://127.0.0.1:49152/oauth/callback/test?next=elsewhere"));
         Assert.False(DesktopAuthorizationCodeStore.IsLoopbackRedirect("http://127.0.0.1:49152/other"));
+    }
+
+    [Fact]
+    public void State_ExpiresAfterFiveMinutes()
+    {
+        var clock = new ManualClock(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var store = new DesktopAuthorizationCodeStore(clock);
+        var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+        var state = store.CreateState(Client, Redirect, Challenge(verifier), Browser);
+        clock.Advance(DesktopAuthorizationCodeStore.StateLifetime);
+        Assert.Null(store.CompleteState(state, Browser, SteamId));
+    }
+
+    [Fact]
+    public void Code_ExpiresAfterSixtySeconds()
+    {
+        var clock = new ManualClock(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var store = new DesktopAuthorizationCodeStore(clock);
+        var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+        var state = store.CreateState(Client, Redirect, Challenge(verifier), Browser);
+        var code = store.CompleteState(state, Browser, SteamId)!;
+        clock.Advance(DesktopAuthorizationCodeStore.CodeLifetime);
+        Assert.Null(store.RedeemCode(code, Client, Redirect, verifier));
+    }
+
+    private static (string Code, Func<DesktopAuthorizationCodeStore, string, string, string, DesktopAuthorizationGrant?> Redeem)
+        CreateCode(DesktopAuthorizationCodeStore store, string verifier, string clientId, string redirectUri)
+    {
+        var state = store.CreateState(clientId, redirectUri, Challenge(verifier), Browser);
+        var code = store.CompleteState(state, Browser, SteamId)!;
+        return (code, (target, client, redirect, proof) => target.RedeemCode(code, client, redirect, proof));
+    }
+
+    private sealed class ManualClock(DateTimeOffset initial) : TimeProvider
+    {
+        private DateTimeOffset _now = initial;
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan duration) => _now = _now.Add(duration);
     }
 
     private static string Challenge(string verifier) =>
