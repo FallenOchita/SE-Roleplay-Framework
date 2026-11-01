@@ -1,5 +1,10 @@
 namespace SE.Roleplay.Framework.Launcher.Models;
-public sealed class ServerDirectoryDocument { public List<ServerListing> Servers { get; set; } = new(); }
+
+public sealed class ServerDirectoryDocument
+{
+    public List<ServerListing> Servers { get; set; } = new();
+}
+
 public sealed class ServerListing
 {
     public string Id { get; set; } = string.Empty;
@@ -11,5 +16,9 @@ public sealed class ServerListing
     public int MaxPlayers { get; set; }
     public string Region { get; set; } = string.Empty;
     public string Status { get; set; } = "Unknown";
+    public string Version { get; set; } = string.Empty;
+    public string WebsiteUrl { get; set; } = string.Empty;
+    public string DiscordUrl { get; set; } = string.Empty;
+    public string RulesUrl { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
 }

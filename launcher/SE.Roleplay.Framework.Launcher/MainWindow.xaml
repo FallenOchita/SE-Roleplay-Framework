@@ -22,7 +22,11 @@
        <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentBrush}"/>
       </WrapPanel>
      </StackPanel>
-     <Button Grid.Column="1" Content="JOIN" VerticalAlignment="Center" MinWidth="92" Tag="{Binding}" Click="JoinServer_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+     <StackPanel Grid.Column="1" VerticalAlignment="Center">
+      <Button Content="JOIN" MinWidth="92" Tag="{Binding}" Click="JoinServer_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+      <Button Content="DETAILS" MinWidth="92" Tag="{Binding}" Click="ServerDetails_Click"/>
+      <Button Content="☆ FAVORITE" MinWidth="92" Tag="{Binding}" Click="FavoriteServer_Click"/>
+     </StackPanel>
     </Grid>
    </Border>
   </DataTemplate>
@@ -96,17 +100,61 @@
     <ScrollViewer x:Name="ServersPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
      <StackPanel>
       <Border Background="{StaticResource PanelBrush}" Padding="18" CornerRadius="10" Margin="0,0,0,16">
-       <DockPanel>
-        <StackPanel><TextBlock Text="COMMUNITY DIRECTORY" FontSize="18" FontWeight="Bold"/><TextBlock x:Name="DirectoryStatusText" Text="Configure a directory URL in Settings to load communities." Foreground="{StaticResource MutedBrush}" Margin="0,5,15,0" TextWrapping="Wrap"/></StackPanel>
-        <Button DockPanel.Dock="Right" Content="REFRESH" Click="RefreshServers_Click" VerticalAlignment="Center"/>
-       </DockPanel>
+       <StackPanel>
+        <DockPanel>
+         <StackPanel><TextBlock Text="COMMUNITY DIRECTORY" FontSize="18" FontWeight="Bold"/><TextBlock x:Name="DirectoryStatusText" Text="Configure a directory URL in Settings to load communities." Foreground="{StaticResource MutedBrush}" Margin="0,5,15,0" TextWrapping="Wrap"/></StackPanel>
+         <Button DockPanel.Dock="Right" Content="REFRESH" Click="RefreshServers_Click" VerticalAlignment="Center"/>
+        </DockPanel>
+        <Grid Margin="0,14,0,0">
+         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+         <TextBox x:Name="ServerSearchBox" Grid.Column="0" Padding="9" Margin="0,0,10,0" VerticalContentAlignment="Center" ToolTip="Search server name, description, region, or tags" TextChanged="ServerSearchBox_TextChanged"/>
+         <ComboBox x:Name="ServerStatusFilter" Grid.Column="1" Padding="7" SelectionChanged="ServerStatusFilter_SelectionChanged" SelectedIndex="0">
+          <ComboBoxItem Content="All servers"/>
+          <ComboBoxItem Content="Online"/>
+          <ComboBoxItem Content="Offline"/>
+          <ComboBoxItem Content="Favorites"/>
+         </ComboBox>
+        </Grid>
+       </StackPanel>
       </Border>
-      <ItemsControl x:Name="ServerList" ItemTemplate="{StaticResource ServerCardTemplate}"/>
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*"/><ColumnDefinition Width="0.85*"/></Grid.ColumnDefinitions>
+       <StackPanel Grid.Column="0" Margin="0,0,14,0">
+        <TextBlock x:Name="ServerResultsText" Text="COMMUNITIES" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
+        <ItemsControl x:Name="ServerList" ItemTemplate="{StaticResource ServerCardTemplate}"/>
+        <TextBlock x:Name="ServerResultsEmptyText" Text="No servers match your filters." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,10,0,0"/>
+       </StackPanel>
+       <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="#2A3742" BorderThickness="1" CornerRadius="10" Padding="18" VerticalAlignment="Top">
+        <StackPanel>
+         <TextBlock Text="SERVER DETAILS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold"/>
+         <TextBlock x:Name="SelectedServerNameText" Text="Select a community" FontSize="21" FontWeight="Bold" TextWrapping="Wrap" Margin="0,8,0,6"/>
+         <TextBlock x:Name="SelectedServerDescriptionText" Text="Choose a server from the list to view its details." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+         <TextBlock x:Name="SelectedServerAddressText" Text="Address: —" Margin="0,3"/>
+         <TextBlock x:Name="SelectedServerRegionText" Text="Region: —" Margin="0,3"/>
+         <TextBlock x:Name="SelectedServerPlayersText" Text="Players: —" Margin="0,3"/>
+         <TextBlock x:Name="SelectedServerStatusText" Text="Status: —" Margin="0,3"/>
+         <TextBlock x:Name="SelectedServerVersionText" Text="Version: —" Margin="0,3"/>
+         <TextBlock Text="TAGS" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="0,14,0,5"/>
+         <TextBlock x:Name="SelectedServerTagsText" Text="—" TextWrapping="Wrap"/>
+         <WrapPanel Margin="0,16,0,0">
+          <Button x:Name="SelectedServerJoinButton" Content="JOIN SERVER" IsEnabled="False" Click="SelectedServerJoin_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+          <Button x:Name="SelectedServerFavoriteButton" Content="☆ FAVORITE" IsEnabled="False" Click="SelectedServerFavorite_Click"/>
+         </WrapPanel>
+        </StackPanel>
+       </Border>
+      </Grid>
      </StackPanel>
     </ScrollViewer>
     <ScrollViewer x:Name="CharactersPage" Visibility="Collapsed">
      <Border Background="{StaticResource PanelBrush}" Padding="22" CornerRadius="10">
-      <StackPanel><TextBlock Text="CHARACTER MANAGEMENT" FontSize="20" FontWeight="Bold"/><TextBlock Text="Character creation and profile synchronization will be connected to the framework account service in a later milestone." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/></StackPanel>
+      <StackPanel>
+       <TextBlock Text="SERVER-SPECIFIC CHARACTERS" FontSize="20" FontWeight="Bold"/>
+       <TextBlock Text="Characters belong to individual SE1 Torch servers. Your character on one community is separate from your character on another." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,12"/>
+       <TextBlock Text="CURRENT STATUS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold"/>
+       <TextBlock Text="The server-side character system is available through in-game chat commands. Select and join your community, then use !rp character list, !rp character create &quot;Name&quot;, !rp character select 1, or !rp character delete 1." TextWrapping="Wrap" Margin="0,6,0,12"/>
+       <TextBlock Text="Launcher-based character management requires a secure server API and Steam account authentication handshake. That integration is not connected yet; this page does not pretend to edit server data locally." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"/>
+       <Button Content="BROWSE SERVERS" HorizontalAlignment="Left" Margin="0,18,0,0" Click="BrowseServers_Click"/>
+      </StackPanel>
      </Border>
     </ScrollViewer>
     <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed">
