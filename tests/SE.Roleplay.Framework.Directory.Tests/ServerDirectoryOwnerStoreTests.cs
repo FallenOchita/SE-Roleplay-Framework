@@ -24,7 +24,7 @@ public sealed class ServerDirectoryOwnerStoreTests
 
         var ownerView = Assert.Single(await store.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None));
         Assert.Null(ownerView.OwnerSteamId64);
-        Assert.Equal(string.Empty, ownerView.ApiKeyHash);
+        Assert.Null(ownerView.ApiKeyHash);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class ServerDirectoryOwnerStoreTests
         var server = Assert.Single(await store.Store.GetPublicServersAsync(CancellationToken.None));
 
         Assert.Null(server.OwnerSteamId64);
-        Assert.Equal(string.Empty, server.ApiKeyHash);
+        Assert.Null(server.ApiKeyHash);
         var json = JsonSerializer.Serialize(server, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.DoesNotContain(OwnerA, json, StringComparison.Ordinal);
         Assert.DoesNotContain("apiKeyHash", json, StringComparison.OrdinalIgnoreCase);
@@ -89,7 +89,7 @@ public sealed class ServerDirectoryOwnerStoreTests
                 new() { Id = "legacy-id", Name = "Legacy listing", Address = "legacy.example", Port = 27016, MaxPlayers = 20 }
             }
         };
-        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(store.FilePath)!);\n        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
 
         Assert.Empty(await store.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None));
         Assert.Equal("Legacy listing", Assert.Single(await store.Store.GetPublicServersAsync(CancellationToken.None)).Name);
@@ -129,7 +129,7 @@ public sealed class ServerDirectoryOwnerStoreTests
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["Directory:DataPath"] = FilePath })
                 .Build();
-            Store = new ServerDirectoryStore(configuration);
+            Store = new ServerDirectoryStore(configuration);\n            System.IO.Directory.CreateDirectory(_directory);
         }
 
         public void Dispose()
