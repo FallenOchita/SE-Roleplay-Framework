@@ -136,3 +136,12 @@ Publish new server listings in the directory feed to make them appear in Browse 
 The launcher server browser now supports text search across community names, descriptions, regions, and tags; online/offline/favorites filters; a server details panel; and locally saved favorites. Directory records are validated before display and joining, including host/port checks, duplicate-ID filtering, bounded response size, and HTTPS for non-local directory endpoints.
 
 The optional `version`, `websiteUrl`, `discordUrl`, and `rulesUrl` fields are accepted as directory metadata. This milestone does not yet provide a hosted directory service or a remote character-management API. Characters remain server-owned; launcher-based character management requires a secure server API with Steam account proof and server-side authorization, rather than trusting a locally stored SteamID.
+
+
+## Self-hosted community directory API
+
+The .NET 8 directory service in `services/SE.Roleplay.Framework.Directory/` provides a public server feed for the launcher and authenticated registration/heartbeat endpoints for server operators.
+
+See the [Directory Service setup guide](services/SE.Roleplay.Framework.Directory/README.md). The service uses an administrator bootstrap key to register and remove listings, generates a unique per-server API key, stores only its SHA-256 hash, and marks listings offline after 90 seconds without a heartbeat. Host it behind HTTPS and keep administrator/server credentials private.
+
+The Torch plugin does not yet send heartbeats automatically; this service milestone establishes the directory API contract first. Automated Torch heartbeat integration and Steam-based owner self-service registration are follow-up tasks.
