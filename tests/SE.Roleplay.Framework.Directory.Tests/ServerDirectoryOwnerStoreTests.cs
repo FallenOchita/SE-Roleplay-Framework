@@ -14,7 +14,7 @@ public sealed class ServerDirectoryOwnerStoreTests
     [Fact]
     public async Task RegisterOwned_AssignsOwnerAndDoesNotExposeSecrets()
     {
-        using var store = new TestStore();
+        using var store = await TestStore.CreateAsync();
         var (server, apiKey) = await store.Store.RegisterOwnedAsync(CreateRequest("Owned A"), OwnerA, CancellationToken.None);
 
         Assert.Equal(OwnerA, server.OwnerSteamId64);
@@ -30,7 +30,7 @@ public sealed class ServerDirectoryOwnerStoreTests
     [Fact]
     public async Task OwnerCannotUpdateDeleteOrRotateAnotherOwnersListing()
     {
-        using var store = new TestStore();
+        using var store = await TestStore.CreateAsync();
         var (server, originalKey) = await store.Store.RegisterOwnedAsync(CreateRequest("Owner B server"), OwnerB, CancellationToken.None);
 
         Assert.False(await store.Store.UpdateOwnedAsync(server.Id, OwnerA, CreateRequest("Hijacked"), CancellationToken.None));
@@ -45,7 +45,7 @@ public sealed class ServerDirectoryOwnerStoreTests
     [Fact]
     public async Task OwnerCanUpdateDeleteAndRotateOwnListing()
     {
-        using var store = new TestStore();
+        using var store = await TestStore.CreateAsync();
         var (server, originalKey) = await store.Store.RegisterOwnedAsync(CreateRequest("Before"), OwnerA, CancellationToken.None);
 
         Assert.True(await store.Store.UpdateOwnedAsync(server.Id, OwnerA, CreateRequest("After"), CancellationToken.None));
@@ -65,7 +65,7 @@ public sealed class ServerDirectoryOwnerStoreTests
     [Fact]
     public async Task PublicFeedDoesNotExposeOwnerOrApiKeyHash()
     {
-        using var store = new TestStore();
+        using var store = await TestStore.CreateAsync();
         await store.Store.RegisterOwnedAsync(CreateRequest("Public"), OwnerA, CancellationToken.None);
 
         var server = Assert.Single(await store.Store.GetPublicServersAsync(CancellationToken.None));
@@ -79,21 +79,59 @@ public sealed class ServerDirectoryOwnerStoreTests
     }
 
     [Fact]
-    public async Task LegacyJsonWithoutOwnerRemainsOwnerless()
+    public async Task LegacyJsonIsImportedOnceAndPreservesOwnerAndApiKeyHash()
     {
-        using var store = new TestStore();
         var legacy = new DirectoryDocument
         {
             Servers = new List<DirectoryServer>
             {
-                new() { Id = "legacy-id", Name = "Legacy listing", Address = "legacy.example", Port = 27016, MaxPlayers = 20 }
+                new()
+                {
+                    Id = "legacy-id", OwnerSteamId64 = OwnerA, Name = "Legacy listing",
+                    Address = "legacy.example", Port = 27016, MaxPlayers = 20,
+                    ApiKeyHash = ServerDirectoryStore.HashKey("legacy-api-key"),
+                    Tags = new List<string> { "roleplay", "legacy" }
+                }
             }
         };
-        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(store.FilePath)!);
-        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        using var store = await TestStore.CreateAsync(legacy);
 
-        Assert.Empty(await store.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None));
-        Assert.Equal("Legacy listing", Assert.Single(await store.Store.GetPublicServersAsync(CancellationToken.None)).Name);
+        var imported = Assert.Single(await store.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None));
+        Assert.Equal("Legacy listing", imported.Name);
+        Assert.Null(imported.ApiKeyHash);
+        Assert.Equal(new[] { "roleplay", "legacy" }, imported.Tags);
+
+        await File.WriteAllTextAsync(store.FilePath, JsonSerializer.Serialize(new DirectoryDocument
+        {
+            Servers = new List<DirectoryServer> { new() { Id = "late-id", Name = "Should not import" } }
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+
+        using var secondInstance = await TestStore.CreateAsync(store.DatabasePath, store.FilePath);
+        var publicServers = await secondInstance.Store.GetPublicServersAsync(CancellationToken.None);
+        Assert.Single(publicServers);
+        Assert.Equal("Legacy listing", Assert.Single(publicServers).Name);
+    }
+
+    [Fact]
+    public async Task IndependentInstancesCanRegisterConcurrentlyWithoutLostUpdates()
+    {
+        using var first = await TestStore.CreateAsync();
+        using var second = await TestStore.CreateAsync(first.DatabasePath, first.FilePath);
+
+        var registrations = Enumerable.Range(0, 20).Select(index =>
+            (index % 2 == 0 ? first.Store : second.Store)
+                .RegisterOwnedAsync(CreateRequest($"Concurrent {index}"), OwnerA, CancellationToken.None));
+
+        await Task.WhenAll(registrations);
+
+        Assert.Equal(20, (await first.Store.GetOwnedServersAsync(OwnerA, CancellationToken.None)).Count);
+    }
+
+    [Fact]
+    public async Task MissingLegacyJsonStartsWithAnEmptyDirectory()
+    {
+        using var store = await TestStore.CreateAsync();
+        Assert.Empty(await store.Store.GetPublicServersAsync(CancellationToken.None));
     }
 
     [Theory]
@@ -102,7 +140,7 @@ public sealed class ServerDirectoryOwnerStoreTests
     [InlineData("")]
     public async Task OwnerOperationsRejectMalformedSteamId(string invalidSteamId)
     {
-        using var store = new TestStore();
+        using var store = await TestStore.CreateAsync();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             store.Store.RegisterOwnedAsync(CreateRequest("Invalid"), invalidSteamId, CancellationToken.None));
@@ -121,22 +159,52 @@ public sealed class ServerDirectoryOwnerStoreTests
 
     private sealed class TestStore : IDisposable
     {
-        private readonly string _directory = Path.Combine(Path.GetTempPath(), "serpf-tests", Guid.NewGuid().ToString("N"));
-        public string FilePath => Path.Combine(_directory, "servers.json");
+        private readonly string _directory;
+        public string FilePath { get; }
+        public string DatabasePath { get; }
         public ServerDirectoryStore Store { get; }
 
-        public TestStore()
+        private TestStore(string directory, string databasePath, string filePath, ServerDirectoryStore store)
         {
+            _directory = directory;
+            DatabasePath = databasePath;
+            FilePath = filePath;
+            Store = store;
+        }
+
+        public static async Task<TestStore> CreateAsync(DirectoryDocument? legacy = null)
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "serpf-directory-tests", Guid.NewGuid().ToString("N"));
+            return await CreateAsync(Path.Combine(directory, "auth.db"), Path.Combine(directory, "servers.json"), legacy);
+        }
+
+        public static async Task<TestStore> CreateAsync(
+            string databasePath, string filePath, DirectoryDocument? legacy = null)
+        {
+            var directory = Path.GetDirectoryName(databasePath)!;
+            System.IO.Directory.CreateDirectory(directory);
+            if (legacy is not null)
+                await File.WriteAllTextAsync(filePath, JsonSerializer.Serialize(
+                    legacy, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { ["Directory:DataPath"] = FilePath })
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Directory:AuthDatabasePath"] = databasePath,
+                    ["Directory:DataPath"] = filePath
+                })
                 .Build();
-            Store = new ServerDirectoryStore(configuration);
-            System.IO.Directory.CreateDirectory(_directory);
+            var database = new DirectoryAuthDatabase(configuration);
+            await database.InitializeAsync();
+            var store = new ServerDirectoryStore(configuration, database);
+            await store.InitializeAsync();
+            return new TestStore(directory, databasePath, filePath, store);
         }
 
         public void Dispose()
         {
-            if (System.IO.Directory.Exists(_directory)) System.IO.Directory.Delete(_directory, recursive: true);
+            if (System.IO.Directory.Exists(_directory))
+                System.IO.Directory.Delete(_directory, recursive: true);
         }
     }
 }
