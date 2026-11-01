@@ -84,7 +84,8 @@ public sealed class SteamOpenIdVerifier
         request.Headers.Accept.ParseAdd("text/plain");
 
         using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.OK)
+        if (response.StatusCode != HttpStatusCode.OK ||
+            !string.Equals(response.RequestMessage?.RequestUri?.AbsoluteUri, SteamOpenIdEndpoint, StringComparison.Ordinal))
             return null;
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
