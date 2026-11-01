@@ -13,9 +13,7 @@ public sealed class DirectoryAuthDatabaseTests
         try
         {
             var database = CreateDatabase(path);
-
             await database.InitializeAsync();
-
             Assert.Equal(1, await database.GetSchemaVersionAsync());
             var tables = await database.GetTableNamesAsync();
             Assert.Contains("steam_login_states", tables);
@@ -25,10 +23,7 @@ public sealed class DirectoryAuthDatabaseTests
             Assert.Contains("desktop_access_tokens", tables);
             Assert.Contains("desktop_refresh_tokens", tables);
         }
-        finally
-        {
-            DeleteDatabase(path);
-        }
+        finally { DeleteDatabase(path); }
     }
 
     [Fact]
@@ -39,17 +34,12 @@ public sealed class DirectoryAuthDatabaseTests
         {
             var first = CreateDatabase(path);
             var second = CreateDatabase(path);
-
             await first.InitializeAsync();
             await second.InitializeAsync();
-
             Assert.Equal(1, await first.GetSchemaVersionAsync());
             Assert.Equal(1, await second.GetSchemaVersionAsync());
         }
-        finally
-        {
-            DeleteDatabase(path);
-        }
+        finally { DeleteDatabase(path); }
     }
 
     private static DirectoryAuthDatabase CreateDatabase(string path)
@@ -69,7 +59,7 @@ public sealed class DirectoryAuthDatabaseTests
     private static void DeleteDatabase(string path)
     {
         var directory = Path.GetDirectoryName(path)!;
-        if (Directory.Exists(directory))
-            Directory.Delete(directory, recursive: true);
+        if (System.IO.Directory.Exists(directory))
+            System.IO.Directory.Delete(directory, recursive: true);
     }
 }
