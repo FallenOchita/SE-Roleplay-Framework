@@ -9,7 +9,7 @@ A server-oriented roleplay framework for **Space Engineers 1**, designed to prov
 - Character profiles are stored per server under the Torch instance's `Storage/SE-Roleplay-Framework/Players` directory. The same Steam account can have different characters on different servers.
 - The host-neutral .NET Standard 2.0 core contains session identity, events, module lifecycle, permissions, profile persistence, and character lifecycle services.
 - The .NET Framework 4.8 Torch adapter connects the core to Torch session and player lifecycle events.
-- The .NET 8 directory API publishes server listings and accepts authenticated server heartbeats.
+- The .NET 8 directory API publishes server listings, accepts authenticated server heartbeats, and supports Steam-authenticated server-owner management.
 
 ## Repository layout
 
@@ -73,16 +73,23 @@ The self-hosted .NET 8 service in `services/SE.Roleplay.Framework.Directory/` pr
 - `POST /api/admin/servers` — bootstrap-admin registration; returns a random per-server API key once.
 - `PUT /api/servers/{id}/heartbeat` — authenticated live player-count/version update.
 - `DELETE /api/admin/servers/{id}` — bootstrap-admin listing removal.
+- Steam OpenID login and callback endpoints for verified owner sessions.
+- Authenticated owner endpoints for listing, registering, updating, deleting, and rotating keys for only the signed-in owner's servers.
+- CSRF- and exact-Origin-protected owner mutations, plus POST logout.
 
 The Torch adapter can send authenticated HTTPS heartbeats immediately when a world loads and every 30 seconds thereafter. It tracks players from Torch join/leave events. Listings become Offline after 90 seconds without a heartbeat.
 
 Configure the directory service with `SERPF_DIRECTORY_ADMIN_KEY` and optionally `SERPF_DIRECTORY_DATA_PATH`. Configure each Torch process with `SERPF_DIRECTORY_URL`, `SERPF_SERVER_ID`, and `SERPF_SERVER_API_KEY`; optional settings are `SERPF_SERVER_MAX_PLAYERS` and `SERPF_SERVER_VERSION`.
 
-See [the directory service setup guide](services/SE.Roleplay.Framework.Directory/README.md) and [Torch heartbeat configuration](src/SE.Roleplay.Framework.Torch/README.md). Host the directory behind HTTPS, keep all keys private, and never put the bootstrap admin key in the launcher or source control.
+See [the directory service setup guide](services/SE.Roleplay.Framework.Directory/README.md), [Torch heartbeat configuration](src/SE.Roleplay.Framework.Torch/README.md), and [Directory server-owner authentication](docs/DIRECTORY_OWNER_AUTH.md). Host the directory behind HTTPS, keep all keys private, and never put the bootstrap admin key in the launcher or source control.
 
-### Server-owner registration
+### Server-owner management status
 
-The directory currently uses a server-side bootstrap admin key for registration and deletion. Steam-authenticated self-service owner registration and listing management are the next security milestone. The design is documented in [Directory server-owner authentication](docs/DIRECTORY_OWNER_AUTH.md). No owner route should be enabled until Steam OpenID assertion validation, replay protection, secure sessions, and owner-scoped authorization are implemented and tested.
+The server-side Steam owner flow and owner-scoped API are implemented. Steam OpenID assertions are confirmed with Steam; login state is short-lived, browser-bound, and single-use; owner sessions use protected cookies; and state-changing owner requests require the configured HTTPS Origin plus an antiforgery token. Owner authorization is performed inside serialized store operations. Legacy bootstrap-admin listings remain ownerless and are not automatically claimed.
+
+Integration tests cover sign-in callback validation, cookie authentication and logout, owner isolation, CSRF rejection, listing lifecycle, and API-key rotation. See [the owner-authentication design and implementation notes](docs/DIRECTORY_OWNER_AUTH.md).
+
+**Next milestone:** add a launcher-facing owner-management experience that can use the verified server session without exposing the bootstrap admin key or weakening the browser-session, CSRF, and ownership boundaries. The current launcher does not yet provide this UI.
 
 ## Build and test
 
@@ -106,8 +113,9 @@ The hosted CI validates the host-neutral core/tests and directory API. It cannot
 
 - Each server owns its own player profile data; back up `Storage/SE-Roleplay-Framework` before upgrades.
 - Directory API keys are generated cryptographically, stored as SHA-256 hashes, and checked using fixed-time comparison.
-- The public directory feed never exposes API-key hashes.
+- The public directory feed never exposes owner SteamIDs or API-key hashes.
 - The JSON directory store uses a process-local lock and atomic file replacement. Run one service instance per data file; use a shared transactional database before horizontal scaling.
+- Login-state and Steam nonce replay caches are process-local. Multi-instance deployments need shared atomic storage for these security controls as well.
 - Torch player counts are based on join/leave events observed after the plugin attaches. If the plugin loads while players are already connected, the initial count can be temporarily low until those players reconnect.
 - Permission grants are not yet restored from player profiles; permission persistence remains a follow-up.
 - Do not copy proprietary game or Torch assemblies into this repository.
