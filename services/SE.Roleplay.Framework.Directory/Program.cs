@@ -1,18 +1,140 @@
 using System.Net;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using SE.Roleplay.Framework.Directory.Models;
 using SE.Roleplay.Framework.Directory.Services;
+
+const string BrowserCookieName = "__Host-serpf-browser";
+const string OwnerCookieName = "__Host-serpf-owner";
+const string SteamLoginPolicy = "steam-login";
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
 builder.Services.AddSingleton<SteamLoginStateStore>();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddHttpClient<SteamOpenIdVerifier>();
+
+var keyPath = builder.Configuration["Directory:DataProtectionKeysPath"]
+    ?? Environment.GetEnvironmentVariable("SERPF_DATA_PROTECTION_KEYS_PATH")
+    ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".aspnet", "DataProtection-Keys", "SE-Roleplay-Framework");
+Directory.CreateDirectory(keyPath);
+builder.Services.AddDataProtection()
+    .SetApplicationName("SE-Roleplay-Framework.Directory")
+    .PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = OwnerCookieName;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.Path = "/";
+        options.Cookie.IsEssential = true;
+        options.ExpireTimeSpan = TimeSpan.FromHours(12);
+        options.SlidingExpiration = true;
+        options.LoginPath = "/auth/steam/login";
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(SteamLoginPolicy, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 12,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
+
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 64 * 1024);
 
 var app = builder.Build();
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
 app.UseHttpsRedirection();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "SE Roleplay Framework Directory" }));
 app.MapGet("/api/servers", async (ServerDirectoryStore store, CancellationToken cancellationToken) =>
     Results.Ok(new { servers = await store.GetPublicServersAsync(cancellationToken) }));
+
+app.MapGet("/auth/steam/login", (HttpContext context, SteamLoginStateStore stateStore, IConfiguration configuration) =>
+{
+    var publicBaseUrl = GetPublicBaseUrl(configuration);
+    if (publicBaseUrl is null)
+        return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Steam sign-in is not configured.");
+
+    var browserSessionId = context.Request.Cookies[BrowserCookieName];
+    if (!IsBrowserSessionId(browserSessionId))
+        browserSessionId = CreateBrowserSessionId();
+
+    context.Response.Cookies.Append(BrowserCookieName, browserSessionId!, BrowserCookieOptions());
+    var callback = new Uri(publicBaseUrl, "/auth/steam/callback");
+    var returnTo = callback.AbsoluteUri + "?state=" + Uri.EscapeDataString(stateStore.Create(browserSessionId!));
+    var redirect = SteamOpenIdRequestBuilder.Build(returnTo, publicBaseUrl.AbsoluteUri);
+    return Results.Redirect(redirect.AbsoluteUri);
+}).RequireRateLimiting(SteamLoginPolicy);
+
+app.MapGet("/auth/steam/callback", async Task<IResult> (
+    HttpContext context,
+    SteamLoginStateStore stateStore,
+    SteamOpenIdVerifier verifier,
+    IConfiguration configuration,
+    CancellationToken cancellationToken) =>
+{
+    var publicBaseUrl = GetPublicBaseUrl(configuration);
+    if (publicBaseUrl is null)
+        return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Steam sign-in is not configured.");
+
+    var stateValues = context.Request.Query["state"];
+    var browserSessionId = context.Request.Cookies[BrowserCookieName];
+    if (stateValues.Count != 1 || string.IsNullOrWhiteSpace(stateValues[0]) ||
+        !IsBrowserSessionId(browserSessionId) ||
+        !stateStore.TryConsume(stateValues[0]!, browserSessionId!))
+        return Results.Unauthorized();
+
+    var assertion = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var pair in context.Request.Query)
+    {
+        if (!pair.Key.StartsWith("openid.", StringComparison.Ordinal))
+            continue;
+        if (pair.Value.Count != 1 || string.IsNullOrWhiteSpace(pair.Value[0]))
+            return Results.Unauthorized();
+        assertion[pair.Key] = pair.Value[0]!;
+    }
+
+    var callback = new Uri(publicBaseUrl, "/auth/steam/callback");
+    var expectedReturnTo = callback.AbsoluteUri + "?state=" + Uri.EscapeDataString(stateValues[0]!);
+    var steamId = await verifier.VerifyAsync(assertion, expectedReturnTo, cancellationToken);
+    if (steamId is null)
+        return Results.Unauthorized();
+
+    var identity = new ClaimsIdentity(
+        new[] { new Claim(ClaimTypes.NameIdentifier, steamId), new Claim(ClaimTypes.Name, steamId) },
+        CookieAuthenticationDefaults.AuthenticationScheme);
+    await context.SignInAsync(
+        CookieAuthenticationDefaults.AuthenticationScheme,
+        new ClaimsPrincipal(identity));
+
+    // Rotate the transient state-binding cookie after authentication.
+    context.Response.Cookies.Append(BrowserCookieName, CreateBrowserSessionId(), BrowserCookieOptions());
+    return Results.Redirect("/");
+}).RequireRateLimiting(SteamLoginPolicy);
 
 app.MapPost("/api/admin/servers", async Task<IResult> (HttpContext context, RegisterServerRequest request, ServerDirectoryStore store, IConfiguration configuration, CancellationToken cancellationToken) =>
 {
@@ -44,6 +166,35 @@ app.MapDelete("/api/admin/servers/{id}", async Task<IResult> (string id, HttpCon
 });
 
 app.Run();
+
+static Uri? GetPublicBaseUrl(IConfiguration configuration)
+{
+    var configured = configuration["Directory:PublicBaseUrl"]
+        ?? Environment.GetEnvironmentVariable("SERPF_DIRECTORY_PUBLIC_BASE_URL");
+    if (!Uri.TryCreate(configured, UriKind.Absolute, out var uri) ||
+        uri.Scheme != Uri.UriSchemeHttps ||
+        !string.IsNullOrEmpty(uri.Query) ||
+        !string.IsNullOrEmpty(uri.Fragment))
+        return null;
+    return new Uri(uri.GetLeftPart(UriPartial.Authority) + uri.AbsolutePath.TrimEnd('/') + "/");
+}
+
+static string CreateBrowserSessionId() =>
+    Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+        .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+static bool IsBrowserSessionId(string? value) =>
+    value is { Length: 43 } && value.All(character =>
+        character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '-' or '_');
+
+static CookieOptions BrowserCookieOptions() => new()
+{
+    HttpOnly = true,
+    Secure = true,
+    SameSite = SameSiteMode.Lax,
+    Path = "/",
+    IsEssential = true
+};
 
 static bool IsAdmin(HttpContext context, IConfiguration configuration)
 {
