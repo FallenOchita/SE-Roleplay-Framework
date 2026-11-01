@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using SE.Roleplay.Framework.Directory.Services;
 using Xunit;
 
@@ -7,6 +8,97 @@ public sealed class DesktopTokenStoreTests
 {
     private const string SteamId = "76561198012345678";
     private const string Client = DesktopTokenStore.RegisteredClientId;
+
+
+    [Fact]
+    public async Task SqliteTokens_AreSharedAcrossInstancesAndReplayRevokesWholeFamily()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var first = new DesktopTokenStore(database);
+            var second = new DesktopTokenStore(database);
+            var initial = first.Issue(SteamId, Client)!;
+
+            Assert.Equal(new DesktopTokenIdentity(SteamId, Client),
+                second.ValidateAccessToken(initial.AccessToken, Client));
+
+            var rotated = second.RotateRefreshToken(initial.RefreshToken, Client);
+            Assert.NotNull(rotated);
+            Assert.Equal(new DesktopTokenIdentity(SteamId, Client),
+                first.ValidateAccessToken(rotated.AccessToken, Client));
+
+            Assert.Null(first.RotateRefreshToken(initial.RefreshToken, Client));
+            Assert.Null(second.ValidateAccessToken(initial.AccessToken, Client));
+            Assert.Null(first.ValidateAccessToken(rotated.AccessToken, Client));
+            Assert.Null(second.RotateRefreshToken(rotated.RefreshToken, Client));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteRefreshRotation_AllowsOnlyOneConcurrentConsumerAcrossInstances()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var stores = Enumerable.Range(0, 8).Select(_ => new DesktopTokenStore(database)).ToArray();
+            var initial = stores[0].Issue(SteamId, Client)!;
+
+            var results = await Task.WhenAll(stores.Select(store =>
+                Task.Run(() => store.RotateRefreshToken(initial.RefreshToken, Client))));
+
+            var winner = Assert.Single(results.Where(result => result is not null))!;
+            Assert.Null(stores[1].RotateRefreshToken(initial.RefreshToken, Client));
+            Assert.Null(stores[2].ValidateAccessToken(initial.AccessToken, Client));
+            Assert.Null(stores[3].ValidateAccessToken(winner.AccessToken, Client));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    [Fact]
+    public async Task SqliteRefreshToken_ExpiresAfterThirtyDays()
+    {
+        var path = CreateDatabasePath();
+        try
+        {
+            var database = CreateDatabase(path);
+            await database.InitializeAsync();
+            var clock = new ManualClock(DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+            var store = new DesktopTokenStore(database, clock);
+            var pair = store.Issue(SteamId, Client)!;
+
+            clock.Advance(DesktopTokenStore.RefreshTokenLifetime);
+
+            Assert.Null(store.RotateRefreshToken(pair.RefreshToken, Client));
+        }
+        finally { DeleteDatabase(path); }
+    }
+
+    private static DirectoryAuthDatabase CreateDatabase(string path)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Directory:AuthDatabasePath"] = path
+            })
+            .Build();
+        return new DirectoryAuthDatabase(configuration);
+    }
+
+    private static string CreateDatabasePath() =>
+        Path.Combine(Path.GetTempPath(), "serpf-desktop-token-tests", Guid.NewGuid().ToString("N"), "auth.db");
+
+    private static void DeleteDatabase(string path)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        if (System.IO.Directory.Exists(directory))
+            System.IO.Directory.Delete(directory, recursive: true);
+    }
 
     [Fact]
     public void Issue_ReturnsOpaqueBearerTokensAndValidatesAccessIdentity()
