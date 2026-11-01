@@ -4,6 +4,7 @@ using SE.Roleplay.Framework.Directory.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<ServerDirectoryStore>();
+builder.Services.AddSingleton<SteamLoginStateStore>();
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 64 * 1024);
 
 var app = builder.Build();
