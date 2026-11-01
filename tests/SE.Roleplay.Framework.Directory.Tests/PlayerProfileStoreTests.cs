@@ -102,7 +102,7 @@ public sealed class PlayerProfileStoreTests
             }).Build();
             var database = new DirectoryAuthDatabase(configuration);
             await database.InitializeAsync();
-            var servers = new ServerDirectoryStore(configuration);
+            var servers = new ServerDirectoryStore(configuration, database);
             await servers.InitializeAsync();
             return new Fixture(directory, database, servers);
         }
