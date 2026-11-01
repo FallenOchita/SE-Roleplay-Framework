@@ -7,19 +7,21 @@ namespace SE.Roleplay.Framework.Directory.Tests;
 public sealed class DirectoryAuthDatabaseTests
 {
     [Fact]
-    public async Task Initialize_CreatesVersionThreeDirectorySchema()
+    public async Task Initialize_CreatesVersionFourPlayerSchema()
     {
         var path = CreateDatabasePath();
         try
         {
             var database = CreateDatabase(path);
             await database.InitializeAsync();
-            Assert.Equal(3, await database.GetSchemaVersionAsync());
+            Assert.Equal(4, await database.GetSchemaVersionAsync());
             var tables = await database.GetTableNamesAsync();
             Assert.Contains("steam_login_states", tables);
             Assert.Contains("steam_openid_nonces", tables);
             Assert.Contains("directory_servers", tables);
             Assert.Contains("directory_server_imports", tables);
+            Assert.Contains("player_profiles", tables);
+            Assert.Contains("player_permission_grants", tables);
             Assert.Contains("desktop_authorization_states", tables);
             Assert.Contains("desktop_authorization_codes", tables);
             Assert.Contains("desktop_token_families", tables);
@@ -39,8 +41,8 @@ public sealed class DirectoryAuthDatabaseTests
             var second = CreateDatabase(path);
             await first.InitializeAsync();
             await second.InitializeAsync();
-            Assert.Equal(3, await first.GetSchemaVersionAsync());
-            Assert.Equal(3, await second.GetSchemaVersionAsync());
+            Assert.Equal(4, await first.GetSchemaVersionAsync());
+            Assert.Equal(4, await second.GetSchemaVersionAsync());
         }
         finally { DeleteDatabase(path); }
     }
