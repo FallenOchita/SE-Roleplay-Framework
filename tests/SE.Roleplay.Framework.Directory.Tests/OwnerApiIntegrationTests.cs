@@ -273,7 +273,9 @@ public sealed class OwnerApiIntegrationTests
         // A 200 response here would mean the callback-issued owner cookie remained valid.
         Assert.Equal(HttpStatusCode.Found, afterLogout.StatusCode);
         Assert.NotNull(afterLogout.Headers.Location);
-        Assert.StartsWith("/auth/steam/login", afterLogout.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal("/auth/steam/login", afterLogout.Headers.Location!.IsAbsoluteUri
+            ? afterLogout.Headers.Location.AbsolutePath
+            : afterLogout.Headers.Location.OriginalString.Split('?', 2)[0]);
     }
 
     [Fact]
