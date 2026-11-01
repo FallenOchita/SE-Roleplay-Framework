@@ -76,6 +76,28 @@ public sealed class SteamLoginStateStoreTests
         Assert.Throws<ArgumentException>(() => store.Create(sessionId!));
     }
 
+    [Fact]
+    public void TryConsume_ReturnsValidatedLocalAuthorizationReturnPath()
+    {
+        var store = new SteamLoginStateStore();
+        const string returnPath = "/oauth/authorize?client_id=serpf-windows-launcher";
+        var state = store.Create(BrowserA, returnPath);
+
+        Assert.True(store.TryConsume(state, BrowserA, out var consumedPath));
+        Assert.Equal(returnPath, consumedPath);
+    }
+
+    [Theory]
+    [InlineData("https://attacker.invalid/steal")]
+    [InlineData("//attacker.invalid/steal")]
+    [InlineData("/admin")]
+    [InlineData("/oauth/authorize\\\\attacker")]
+    public void Create_RejectsUnsafeReturnPaths(string returnPath)
+    {
+        var store = new SteamLoginStateStore();
+        Assert.Throws<ArgumentException>(() => store.Create(BrowserA, returnPath));
+    }
+
     private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;

@@ -25,13 +25,15 @@ public sealed class SteamLoginStateStore
     }
 
     /// <summary>Creates a cryptographically random state bound to a server-generated browser session ID.</summary>
-    public string Create(string browserSessionId)
+    public string Create(string browserSessionId, string? returnPath = null)
     {
         ValidateBrowserSessionId(browserSessionId);
+        if (returnPath is not null && !IsSafeLocalReturnPath(returnPath))
+            throw new ArgumentException("Return path must be a safe local path.", nameof(returnPath));
         var state = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
         var stateHash = Convert.ToHexString(Hash(state));
         var sessionHash = Hash(browserSessionId);
-        var entry = new Entry(sessionHash, _timeProvider.GetUtcNow().Add(_lifetime));
+        var entry = new Entry(sessionHash, _timeProvider.GetUtcNow().Add(_lifetime), returnPath);
 
         lock (_gate)
         {
@@ -51,8 +53,12 @@ public sealed class SteamLoginStateStore
     /// Atomically consumes a state only when it is unexpired and bound to the same browser session.
     /// Invalid or mismatched attempts do not consume another browser's valid state.
     /// </summary>
-    public bool TryConsume(string state, string browserSessionId)
+    public bool TryConsume(string state, string browserSessionId) =>
+        TryConsume(state, browserSessionId, out _);
+
+    public bool TryConsume(string state, string browserSessionId, out string? returnPath)
     {
+        returnPath = null;
         if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(browserSessionId))
             return false;
 
@@ -70,9 +76,20 @@ public sealed class SteamLoginStateStore
                 !CryptographicOperations.FixedTimeEquals(entry.BrowserSessionHash, sessionHash))
                 return false;
 
-            return _entries.Remove(stateHash);
+            _entries.Remove(stateHash);
+            returnPath = entry.ReturnPath;
+            return true;
         }
     }
+
+    private static bool IsSafeLocalReturnPath(string value) =>
+        value.StartsWith("/oauth/authorize?", StringComparison.Ordinal) &&
+        !value.StartsWith("//", StringComparison.Ordinal) &&
+        !value.Contains('\\') &&
+        !value.Any(char.IsControl) &&
+        Uri.TryCreate("https://directory.invalid" + value, UriKind.Absolute, out var uri) &&
+        uri.Host == "directory.invalid" &&
+        uri.AbsolutePath == "/oauth/authorize";
 
     private void PruneExpired(DateTimeOffset now)
     {
@@ -97,5 +114,5 @@ public sealed class SteamLoginStateStore
     private static string Base64UrlEncode(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-    private sealed record Entry(byte[] BrowserSessionHash, DateTimeOffset ExpiresAt);
+    private sealed record Entry(byte[] BrowserSessionHash, DateTimeOffset ExpiresAt, string? ReturnPath);
 }

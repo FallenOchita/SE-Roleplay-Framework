@@ -21,21 +21,29 @@ public sealed class DesktopAuthorizationCodeStore
     public DesktopAuthorizationCodeStore(TimeProvider? clock = null) =>
         _clock = clock ?? TimeProvider.System;
 
-    public string CreateState(string clientId, string redirectUri, string challenge, string browserSession)
+    public string CreateState(string clientId, string redirectUri, string challenge, string browserSession,
+        string? clientState = null)
     {
         ValidateInputs(clientId, redirectUri, challenge, browserSession);
+        if (clientState is { Length: > 256 } || (clientState is not null &&
+            clientState.Any(char.IsControl)))
+            throw new ArgumentException("Invalid launcher state.", nameof(clientState));
         var state = NewValue();
         var now = _clock.GetUtcNow();
         lock (_gate)
         {
             Prune(now);
             _states.Add(HashKey(state), new StateEntry(clientId, redirectUri, challenge,
-                Hash(browserSession), now.Add(StateLifetime)));
+                Hash(browserSession), now.Add(StateLifetime), clientState));
         }
         return state;
     }
 
-    public string? CompleteState(string state, string browserSession, string verifiedSteamId64)
+    public string? CompleteState(string state, string browserSession, string verifiedSteamId64) =>
+        CompleteAuthorization(state, browserSession, verifiedSteamId64)?.Code;
+
+    public DesktopAuthorizationCompletion? CompleteAuthorization(
+        string state, string browserSession, string verifiedSteamId64)
     {
         if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(browserSession) ||
             !IsSteamId(verifiedSteamId64))
@@ -56,7 +64,27 @@ public sealed class DesktopAuthorizationCodeStore
             var code = NewValue();
             _codes.Add(HashKey(code), new CodeEntry(verifiedSteamId64, entry.ClientId,
                 entry.RedirectUri, entry.Challenge, now.Add(CodeLifetime)));
-            return code;
+            return new DesktopAuthorizationCompletion(code, entry.RedirectUri, entry.ClientState);
+        }
+    }
+
+    public bool DenyState(string state, string browserSession) =>
+        DenyAuthorization(state, browserSession) is not null;
+
+    public DesktopAuthorizationDenial? DenyAuthorization(string state, string browserSession)
+    {
+        if (string.IsNullOrWhiteSpace(state) || string.IsNullOrWhiteSpace(browserSession))
+            return null;
+        var now = _clock.GetUtcNow();
+        lock (_gate)
+        {
+            Prune(now);
+            var key = HashKey(state);
+            if (!_states.TryGetValue(key, out var entry) || entry.ExpiresAt <= now ||
+                !CryptographicOperations.FixedTimeEquals(entry.BrowserHash, Hash(browserSession)))
+                return null;
+            _states.Remove(key);
+            return new DesktopAuthorizationDenial(entry.RedirectUri, entry.ClientState);
         }
     }
 
@@ -133,9 +161,11 @@ public sealed class DesktopAuthorizationCodeStore
         Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private sealed record StateEntry(string ClientId, string RedirectUri, string Challenge,
-        byte[] BrowserHash, DateTimeOffset ExpiresAt);
+        byte[] BrowserHash, DateTimeOffset ExpiresAt, string? ClientState);
     private sealed record CodeEntry(string SteamId64, string ClientId, string RedirectUri,
         string Challenge, DateTimeOffset ExpiresAt);
 }
 
 public sealed record DesktopAuthorizationGrant(string SteamId64, string ClientId);
+public sealed record DesktopAuthorizationCompletion(string Code, string RedirectUri, string? ClientState);
+public sealed record DesktopAuthorizationDenial(string RedirectUri, string? ClientState);

@@ -125,6 +125,41 @@ public sealed class DesktopAuthorizationCodeStoreTests
         Assert.Null(store.RedeemCode(code, Client, Redirect, verifier));
     }
 
+    [Fact]
+    public void Approval_PreservesOriginalLauncherStateAndExactRedirect()
+    {
+        var store = new DesktopAuthorizationCodeStore();
+        const string launcherState = "launcher-correlation-state-123";
+        var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+        var state = store.CreateState(Client, Redirect, Challenge(verifier), Browser, launcherState);
+
+        var approval = store.CompleteAuthorization(state, Browser, SteamId);
+
+        Assert.NotNull(approval);
+        Assert.Equal(Redirect, approval.RedirectUri);
+        Assert.Equal(launcherState, approval.ClientState);
+        Assert.False(string.IsNullOrWhiteSpace(approval.Code));
+        Assert.Null(store.CompleteAuthorization(state, Browser, SteamId));
+    }
+
+    [Fact]
+    public void Denial_ConsumesTransactionAndReturnsOnlyStoredCallbackDetails()
+    {
+        var store = new DesktopAuthorizationCodeStore();
+        const string launcherState = "launcher-correlation-state-456";
+        var verifier = "verifier-string-that-is-long-enough-for-pkce-123";
+        var state = store.CreateState(Client, Redirect, Challenge(verifier), Browser, launcherState);
+
+        Assert.Null(store.DenyAuthorization(state, Browser + "-different"));
+        var denial = store.DenyAuthorization(state, Browser);
+
+        Assert.NotNull(denial);
+        Assert.Equal(Redirect, denial.RedirectUri);
+        Assert.Equal(launcherState, denial.ClientState);
+        Assert.Null(store.DenyAuthorization(state, Browser));
+        Assert.Null(store.CompleteAuthorization(state, Browser, SteamId));
+    }
+
     private static (string Code, Func<DesktopAuthorizationCodeStore, string, string, string, DesktopAuthorizationGrant?> Redeem)
         CreateCode(DesktopAuthorizationCodeStore store, string verifier, string clientId, string redirectUri)
     {
