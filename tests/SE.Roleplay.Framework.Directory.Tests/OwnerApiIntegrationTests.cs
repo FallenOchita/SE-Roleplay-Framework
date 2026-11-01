@@ -198,6 +198,53 @@ public sealed class OwnerApiIntegrationTests
     }
 
 
+
+    [Fact]
+    public async Task SteamCallback_SignsInVerifiedSteamIdentityAndRotatesBrowserCookie()
+    {
+        using var factory = new DirectoryApiFactory(useSuccessfulSteamVerifier: true);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri(Origin),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        var login = await client.GetAsync("/auth/steam/login");
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        var loginQuery = QueryHelpers.ParseQuery(login.Headers.Location!.Query);
+        var returnTo = Assert.Single(loginQuery["openid.return_to"]);
+        var state = Assert.Single(QueryHelpers.ParseQuery(new Uri(returnTo).Query)["state"]);
+        var claimedId = "https://steamcommunity.com/openid/id/" + OwnerA;
+        var callbackParameters = new Dictionary<string, string>
+        {
+            ["state"] = state,
+            ["openid.ns"] = "http://specs.openid.net/auth/2.0",
+            ["openid.mode"] = "id_res",
+            ["openid.op_endpoint"] = "https://steamcommunity.com/openid/login",
+            ["openid.claimed_id"] = claimedId,
+            ["openid.identity"] = claimedId,
+            ["openid.return_to"] = returnTo,
+            ["openid.response_nonce"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'") + "integration-success",
+            ["openid.assoc_handle"] = "integration-test-association",
+            ["openid.signed"] = "op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
+            ["openid.sig"] = "mock-signature"
+        };
+        var callbackPath = QueryHelpers.AddQueryString(
+            "/auth/steam/callback",
+            callbackParameters.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value)));
+
+        var callback = await client.GetAsync(callbackPath);
+
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        Assert.Equal("/", callback.Headers.Location?.OriginalString);
+        var cookies = string.Join(";", callback.Headers.TryGetValues("Set-Cookie", out var values)
+            ? values
+            : Array.Empty<string>());
+        Assert.Contains("__Host-serpf-owner", cookies, StringComparison.Ordinal);
+        Assert.Contains("__Host-serpf-browser", cookies, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SteamCallback_RejectsMissingAndDuplicateState()
     {
@@ -338,9 +385,11 @@ public sealed class OwnerApiIntegrationTests
     private sealed class DirectoryApiFactory : WebApplicationFactory<Program>
     {
         private readonly string _root = Path.Combine(Path.GetTempPath(), "serpf-api-tests", Guid.NewGuid().ToString("N"));
+        private readonly bool _useSuccessfulSteamVerifier;
 
-        public DirectoryApiFactory()
+        public DirectoryApiFactory(bool useSuccessfulSteamVerifier = false)
         {
+            _useSuccessfulSteamVerifier = useSuccessfulSteamVerifier;
             System.IO.Directory.CreateDirectory(_root);
         }
 
@@ -368,6 +417,12 @@ public sealed class OwnerApiIntegrationTests
                 }));
             builder.ConfigureTestServices(services =>
             {
+                if (_useSuccessfulSteamVerifier)
+                {
+                    services.AddHttpClient<SE.Roleplay.Framework.Directory.Services.SteamOpenIdVerifier>()
+                        .ConfigurePrimaryHttpMessageHandler(() => new SuccessfulSteamConfirmationHandler());
+                }
+
                 services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = TestSteamAuthHandler.SchemeName;
@@ -383,6 +438,21 @@ public sealed class OwnerApiIntegrationTests
             base.Dispose(disposing);
             if (disposing && System.IO.Directory.Exists(_root))
                 System.IO.Directory.Delete(_root, recursive: true);
+        }
+    }
+
+
+    private sealed class SuccessfulSteamConfirmationHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Assert.Equal(HttpMethod.Post, request.Method);
+            Assert.Equal("https://steamcommunity.com/openid/login", request.RequestUri?.AbsoluteUri);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("ns:http://specs.openid.net/auth/2.0\nis_valid:true\n")
+            });
         }
     }
 
