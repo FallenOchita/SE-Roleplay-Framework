@@ -91,7 +91,7 @@ The server-side Steam owner flow and owner-scoped API are implemented. Steam Ope
 
 Integration tests cover sign-in callback validation, cookie authentication and logout, owner isolation, CSRF rejection, listing lifecycle, and API-key rotation. See [the owner-authentication design and implementation notes](docs/DIRECTORY_OWNER_AUTH.md).
 
-**Next milestone:** add a launcher-facing owner-management experience that can use the verified server session without exposing the bootstrap admin key or weakening the browser-session, CSRF, and ownership boundaries. The current launcher does not yet provide this UI.
+**Owner management:** the launcher now supports verified Steam owner sign-in, owned-server management, API-key rotation, and per-server allowlist membership and policy settings. See [allowlist deployment requirements](docs/ALLOWLIST_DEPLOYMENT.md) before enabling admission enforcement.
 
 ## Build and test
 

@@ -408,7 +408,7 @@ public partial class MainWindow : Window
             var enabled = OwnerAllowlistEnabledCheckBox.IsChecked == true;
             await _launcherApi.SetOwnedServerAllowlistEnabledAsync(url, server.Id, enabled);
             OwnerMembersStatusText.Text = enabled
-                ? "Allowlist enforcement enabled. Players not on the list will be denied admission."
+                ? "Directory allowlist policy enabled. Your Torch server must also have SERPF_ADMISSION_ENFORCEMENT=true and valid directory credentials before joins are blocked."
                 : "Allowlist enforcement disabled. The list is retained but is not enforced.";
         }
         catch (Exception ex)
