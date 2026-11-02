@@ -174,6 +174,61 @@ public sealed class PlayerProfileServiceTests
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
 
+
+    [Fact]
+    public async Task CharacterMetadataCanBeSetRemovedAndPersisted()
+    {
+        var directory = NewTemporaryDirectory();
+        try
+        {
+            const ulong accountId = 76561198000000012;
+            var identities = new PlayerIdentityService();
+            identities.Connect(accountId, "MetadataTester");
+            var store = new JsonPlayerDataStore(directory);
+            var profiles = new PlayerProfileService(store, identities, 3);
+            await profiles.LoadAsync(accountId, "MetadataTester");
+            var character = await profiles.CreateCharacterAsync(accountId, "Aster");
+
+            await profiles.SetCharacterMetadataAsync(accountId, character.CharacterId, "Faction", "Independent");
+            await profiles.SetCharacterMetadataAsync(accountId, character.CharacterId, "rank.level", "3");
+            var saved = Assert.Single(await profiles.GetCharactersAsync(accountId));
+            Assert.Equal("Independent", saved.Metadata["faction"]);
+            Assert.Equal("3", saved.Metadata["rank.level"]);
+
+            await profiles.UnloadAsync(accountId);
+            var reloaded = new PlayerProfileService(store, identities, 3);
+            await reloaded.LoadAsync(accountId, "MetadataTester");
+            await reloaded.SetCharacterMetadataAsync(accountId, character.CharacterId, "FACTION", null);
+            var persisted = Assert.Single(await reloaded.GetCharactersAsync(accountId));
+            Assert.False(persisted.Metadata.ContainsKey("faction"));
+            Assert.True(persisted.Metadata.ContainsKey("rank.level"));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task CharacterMetadataRejectsInvalidKeysValuesAndForeignCharacters()
+    {
+        var directory = NewTemporaryDirectory();
+        try
+        {
+            const ulong accountId = 76561198000000013;
+            var identities = new PlayerIdentityService();
+            identities.Connect(accountId, "MetadataTester");
+            var profiles = new PlayerProfileService(new JsonPlayerDataStore(directory), identities, 3);
+            await profiles.LoadAsync(accountId, "MetadataTester");
+            var character = await profiles.CreateCharacterAsync(accountId, "Aster");
+
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                profiles.SetCharacterMetadataAsync(accountId, character.CharacterId, "bad key", "value"));
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                profiles.SetCharacterMetadataAsync(accountId, character.CharacterId, "valid", new string('x', 257)));
+            await Assert.ThrowsAsync<System.Collections.Generic.KeyNotFoundException>(() =>
+                profiles.SetCharacterMetadataAsync(accountId, Guid.NewGuid(), "valid", "value"));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "SE-RP-Tests-" + Guid.NewGuid().ToString("N"));
