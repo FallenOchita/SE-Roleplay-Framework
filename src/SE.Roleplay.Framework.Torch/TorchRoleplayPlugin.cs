@@ -153,7 +153,7 @@ namespace SE.Roleplay.Framework.Torch
             }
             else
             {
-                _context?.Logger.Warn("Torch IChatManagerServer was unavailable; native Lua chat moderation is inactive.");
+                _context?.Logger.Warn("Torch IChatManagerServer was unavailable; native public-chat moderation is inactive.");
             }
 
             _multiplayer = session.Managers.GetManager<IMultiplayerManagerBase>();
