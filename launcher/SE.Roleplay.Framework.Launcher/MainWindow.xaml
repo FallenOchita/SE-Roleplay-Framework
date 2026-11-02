@@ -37,7 +37,7 @@
    <DockPanel LastChildFill="True">
     <StackPanel DockPanel.Dock="Top">
      <TextBlock Text="SE1 ROLEPLAY" FontSize="23" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,8,0,28"/>
-     <Button x:Name="HomeNav" Content="HOME" Click="HomeNav_Click"/>
+     <Button x:Name="HomeNav" Content="FEATURED" Click="HomeNav_Click"/>
      <Button x:Name="ServersNav" Content="BROWSE SERVERS" Click="ServersNav_Click"/>
      <Button x:Name="CharactersNav" Content="PROFILE &amp; OWNER" Click="CharactersNav_Click"/>
      <Button x:Name="SettingsNav" Content="SETTINGS" Click="SettingsNav_Click"/>
@@ -75,7 +75,7 @@
          <TextBlock Text="Discover roleplay communities, revisit your servers, and jump into the universe." TextWrapping="Wrap" Foreground="#D2E4DC"/>
          <WrapPanel Margin="0,14,0,0">
           <Button Content="BROWSE SERVERS" Click="BrowseServers_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712" FontWeight="Bold"/>
-          <Button Content="PLAY SPACE ENGINEERS" Click="LaunchGame_Click" Background="#2C4840"/>
+          <Button Content="BROWSE COMMUNITIES" Click="BrowseServers_Click" Background="#2C4840"/>
          </WrapPanel>
         </StackPanel>
         <Border Grid.Column="1" Background="#29473D" CornerRadius="12" Padding="22" Margin="20,0,0,0" VerticalAlignment="Center">
