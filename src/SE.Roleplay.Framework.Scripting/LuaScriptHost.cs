@@ -107,7 +107,7 @@ namespace SE.Roleplay.Framework.Scripting
                     module.Budget.Reset();
                     var player = CreatePlayerTable(module.Script, platformId, displayName);
                     var args = CreateArgumentsTable(module.Script, arguments ?? Array.Empty<string>());
-                    var result = module.Script.Call(registration.Definition.Handler, player, args);
+                    var result = module.Script.Call(registration.Definition.Handler, DynValue.NewTable(player), DynValue.NewTable(args));
                     if (result.Type != DataType.Nil && result.Type != DataType.Void)
                     {
                         var response = result.ToPrintString();
@@ -159,7 +159,7 @@ namespace SE.Roleplay.Framework.Scripting
                         try
                         {
                             module.Budget.Reset();
-                            module.Script.Call(handler, CreatePlayerTable(module.Script, platformId, displayName));
+                            module.Script.Call(handler, DynValue.NewTable(CreatePlayerTable(module.Script, platformId, displayName)));
                         }
                         catch (Exception exception)
                         {
