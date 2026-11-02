@@ -13,6 +13,7 @@ namespace SE.Roleplay.Framework.Client
         // Reserve and document a framework-specific channel. Keep in sync with the server component.
         internal const ushort NetworkChannel = 51347;
         private bool _handlerRegistered;
+        private bool _chatHandlerRegistered;
         private bool _screenOpen;
 
         public override void LoadData()
@@ -22,6 +23,8 @@ namespace SE.Roleplay.Framework.Client
 
             MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(NetworkChannel, OnSecureMessage);
             _handlerRegistered = true;
+            MyAPIGateway.Multiplayer.RegisterSecureMessageHandler(LuaChatMessage.NetworkChannel, OnLuaChatMessage);
+            _chatHandlerRegistered = true;
         }
 
         public override void UpdateAfterSimulation()
@@ -111,12 +114,45 @@ namespace SE.Roleplay.Framework.Client
             }
         }
 
+        private void OnLuaChatMessage(ushort channel, byte[] data, ulong senderSteamId, bool isSenderServer)
+        {
+            if (channel != LuaChatMessage.NetworkChannel || !isSenderServer || data == null)
+                return;
+
+            try
+            {
+                var message = LuaChatMessage.Deserialize(data);
+                if (message.ProtocolVersion != LuaChatMessage.CurrentProtocolVersion ||
+                    (message.Channel != "local" && message.Channel != "faction") ||
+                    string.IsNullOrWhiteSpace(message.Sender) ||
+                    string.IsNullOrWhiteSpace(message.Text) ||
+                    message.Sender.Length > 64 || message.Text.Length > 280)
+                    return;
+
+                var utilities = MyAPIGateway.Utilities;
+                if (utilities == null)
+                    return;
+
+                utilities.InvokeOnGameThread(() =>
+                    MyAPIGateway.Utilities?.ShowMessage(
+                        "[RP:" + message.Channel.ToUpperInvariant() + "] " + message.Sender,
+                        message.Text));
+            }
+            catch (Exception)
+            {
+                // Malformed or incompatible server chat packets are ignored.
+            }
+        }
+
         protected override void UnloadData()
         {
             if (_handlerRegistered && MyAPIGateway.Multiplayer != null)
                 MyAPIGateway.Multiplayer.UnregisterSecureMessageHandler(NetworkChannel, OnSecureMessage);
 
             _handlerRegistered = false;
+            if (_chatHandlerRegistered && MyAPIGateway.Multiplayer != null)
+                MyAPIGateway.Multiplayer.UnregisterSecureMessageHandler(LuaChatMessage.NetworkChannel, OnLuaChatMessage);
+            _chatHandlerRegistered = false;
             _screenOpen = false;
             base.UnloadData();
         }
