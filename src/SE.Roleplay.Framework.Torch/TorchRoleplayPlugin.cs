@@ -89,6 +89,7 @@ namespace SE.Roleplay.Framework.Torch
             _sessionManager.SessionStateChanged += OnSessionStateChanged;
             _nextAutosaveUtc = DateTime.UtcNow.AddSeconds(options.AutosaveIntervalSeconds);
             ConfigureDirectoryHeartbeat();
+            ServerMembershipCommandModule.Configure();
             ConfigureAdmissionEnforcement(torch);
 
             if (_sessionManager.CurrentSession?.State == TorchSessionState.Loaded)
@@ -427,6 +428,7 @@ namespace SE.Roleplay.Framework.Torch
             _directoryHttpClient = null;
 
             CharacterCommandModule.Framework = null;
+            ServerMembershipCommandModule.Shutdown();
             _context?.Logger.Info("Torch adapter stopped.");
             base.Dispose();
         }
