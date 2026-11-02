@@ -133,6 +133,53 @@ public sealed class ServerMembershipStore(DirectoryAuthDatabase database, TimePr
         return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
     }
 
+    /// <summary>Authenticates a server API key and returns the server owner's Steam identity for server-side administration.</summary>
+    public async Task<string?> GetServerOwnerSteamId64Async(
+        string serverId, string apiKey, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(serverId) || string.IsNullOrWhiteSpace(apiKey))
+            return null;
+
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT owner_steam_id64, api_key_hash
+            FROM directory_servers
+            WHERE id = $server
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$server", serverId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken) || reader.IsDBNull(0))
+            return null;
+        var ownerSteamId64 = reader.GetString(0);
+        var keyHash = reader.IsDBNull(1) ? null : reader.GetString(1);
+        return ServerDirectoryStore.VerifyKey(apiKey, keyHash) ? ownerSteamId64 : null;
+    }
+
+    /// <summary>Reads allowlist enforcement for a server owner.</summary>
+    public async Task<bool?> GetAllowlistEnabledAsync(
+        string serverId, string ownerSteamId64, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(serverId) || !PlayerProfileStore.IsValidSteamId64(ownerSteamId64))
+            return null;
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COALESCE(settings.allowlist_enabled, 0)
+            FROM directory_servers s
+            LEFT JOIN server_admission_settings settings ON settings.server_id = s.id
+            WHERE s.id = $server AND s.owner_steam_id64 = $owner
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$server", serverId);
+        command.Parameters.AddWithValue("$owner", ownerSteamId64);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is null or DBNull ? null : Convert.ToInt32(result) == 1;
+    }
+
     /// <summary>Authenticates a game server with its API key and returns the authoritative admission decision.</summary>
     public async Task<ServerAdmissionDecision?> GetAdmissionDecisionAsync(
         string serverId, string apiKey, string playerSteamId64, CancellationToken cancellationToken)
