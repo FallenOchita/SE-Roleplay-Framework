@@ -13,7 +13,7 @@ namespace SE.Roleplay.Framework.Torch
         private const ushort NetworkChannel = 51348;
         private const double LocalChatRangeMetres = 500d;
 
-        public static void Send(ulong senderSteamId, string channel, string message, IFrameworkLogger logger)
+        public static void Send(ulong senderSteamId, string channel, string message, IFrameworkLogger? logger)
         {
             try
             {
@@ -51,20 +51,38 @@ namespace SE.Roleplay.Framework.Torch
                 }
                 else
                 {
-                    var senderPosition = sender.GetPosition();
+                    Vector3D senderPosition;
+                    try
+                    {
+                        senderPosition = sender.GetPosition();
+                    }
+                    catch
+                    {
+                        return;
+                    }
+
                     var rangeSquared = LocalChatRangeMetres * LocalChatRangeMetres;
                     foreach (var player in connected)
                     {
                         if (player == null || player.SteamUserId == 0)
                             continue;
-                        if (Vector3D.DistanceSquared(senderPosition, player.GetPosition()) <= rangeSquared)
-                            recipients.Add(player);
+                        try
+                        {
+                            var distanceSquared = Vector3D.DistanceSquared(senderPosition, player.GetPosition());
+                            if (!double.IsNaN(distanceSquared) && !double.IsInfinity(distanceSquared) &&
+                                distanceSquared <= rangeSquared)
+                                recipients.Add(player);
+                        }
+                        catch
+                        {
+                            // Players without a controlled entity have no usable local-chat position.
+                        }
                     }
                 }
 
-                var senderName = sender.DisplayName ?? "Player";
-                if (senderName.Length > 64)
-                    senderName = senderName.Substring(0, 64);
+                var senderName = new string((sender.DisplayName ?? "Player").Where(character => !char.IsControl(character)).Take(64).ToArray());
+                if (string.IsNullOrWhiteSpace(senderName))
+                    senderName = "Player";
                 var packet = new LuaChatNetworkMessage
                 {
                     Channel = channel,
