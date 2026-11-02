@@ -31,7 +31,7 @@ Players can manage their own characters through the server chat:
 | --- | --- |
 | `!rp character list` | Lists characters stored by this server; the selected character is marked with `*`. |
 | `!rp character create "Name" "Description"` | Creates a character on this server. Description is optional. |
-| `!rp character select 2` | Selects the character at position 2 in the list. |
+| `!rp character select 2` | Selects the character at position 2 in the list. |\n| `!rp character rename 2 \"New Name\"` | Renames the character at position 2. |\n| `!rp character describe 2 \"New description\"` | Updates its description. |
 | `!rp character delete 2` | Deletes the character at position 2 in the list. |
 
 Character positions are based on the current list order. Players can only operate on the profile associated with their own Steam account. The profile service enforces the server-configured five-character limit. Commands are registered through Torch's `CommandManager` when the plugin is loaded into a session.
@@ -107,7 +107,7 @@ Character ownership and persistence belong to the server, not the desktop launch
 The server-side profile API exposed through `IFrameworkContext.Profiles` provides:
 
 - `LoadAsync` when a player joins (performed by the Torch adapter).
-- `CreateCharacterAsync`, `GetCharactersAsync`, and `SelectCharacterAsync` for character management.
+- `CreateCharacterAsync`, `GetCharactersAsync`, `SelectCharacterAsync`, and `UpdateCharacterAsync` for character management.
 - `DeleteCharacterAsync` for character deletion.
 - Automatic save/unload on disconnect and periodic server autosave.
 
