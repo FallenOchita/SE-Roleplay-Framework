@@ -13,6 +13,7 @@ Windows WPF launcher for the Space Engineers 1 Roleplay Framework. The launcher 
 - Directory account profile editing (display name and biography).
 - Server-owner tools for registering, editing/managing owned listings, rotating server API keys, and managing per-server allowlist membership and policy.
 - Protected refresh-token storage using Windows Data Protection APIs.
+- Startup self-update checks against the rolling GitHub development release; downloaded installers are SHA-256 verified before launch.
 
 ## Requirements
 
@@ -38,7 +39,7 @@ Install the .NET 8 SDK and Inno Setup 6, then run:
 
 Output: `artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe`.
 
-The `.github/workflows/launcher-installer.yml` workflow builds the actual installer on Windows for launcher pull requests and manual runs. It uploads the installer and SHA-256 checksum as a 14-day artifact. Pushing a `launcher-v*` tag also attaches both files to a GitHub Release.
+The `.github/workflows/launcher-installer.yml` workflow builds the actual installer on Windows for launcher pull requests and manual runs. It uploads the installer, SHA-256 checksum, and update manifest as a 14-day artifact. Each push to `main` that changes `launcher/**` publishes or refreshes the `launcher-dev` prerelease with the latest installer and manifest. Installed launchers check that release on startup, compare the embedded source commit, ask before updating, verify the installer checksum, and run the installer. Versioned `launcher-v*` tags publish regular GitHub Releases.
 
 ## Server directory configuration
 
@@ -82,7 +83,7 @@ Before calling this a public release, manually verify:
 - Character management is not yet implemented in the desktop launcher; the profile page currently edits the directory account display name and biography.
 - Server discovery depends on a separately hosted and configured directory service; this repository does not provide a public community directory instance.
 - Server owner allowlist controls configure directory policy. The Torch server must also be deployed and configured with valid directory credentials and `SERPF_ADMISSION_ENFORCEMENT=true` for admission decisions to be enforced.
-- No modpack installation or automatic launcher self-update is included.
+- Automatic updates currently follow successful development-release builds from pushes to `main` that change launcher files. Updates require an internet connection and user confirmation; pull requests do not publish update builds.
 - The launcher does not bundle proprietary Space Engineers or Torch assemblies.
 - The Torch adapter and real server admission flow still require testing against the exact local SE1/Torch installation.
 
