@@ -70,7 +70,7 @@ jobs:
             version = "0.2.0"
             commit = "${{ github.sha }}"
             channel = "development"
-          } | ConvertTo-Json -Compress | Set-Content -Encoding utf8 "./launcher/artifacts/launcher-update.json"
+          } | ConvertTo-Json -Compress | Set-Content -Encoding utf8NoBOM "./launcher/artifacts/launcher-update.json"
 
           Write-Host "Verified $($installer.Name) ($([math]::Round($installer.Length / 1MB, 2)) MB)"
           Write-Host "SHA256: $hash"
