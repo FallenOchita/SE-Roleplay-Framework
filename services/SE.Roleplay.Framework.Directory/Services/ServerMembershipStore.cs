@@ -109,6 +109,28 @@ public sealed class ServerMembershipStore(DirectoryAuthDatabase database, TimePr
     }
 
 
+    /// <summary>Reads allowlist enforcement only for the verified server owner.</summary>
+    public async Task<bool?> GetAllowlistEnabledAsync(
+        string serverId, string ownerSteamId64, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(serverId) || !PlayerProfileStore.IsValidSteamId64(ownerSteamId64))
+            return null;
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COALESCE(settings.allowlist_enabled, 0)
+            FROM directory_servers s
+            LEFT JOIN server_admission_settings settings ON settings.server_id = s.id
+            WHERE s.id = $server AND s.owner_steam_id64 = $owner
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$server", serverId);
+        command.Parameters.AddWithValue("$owner", ownerSteamId64);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is null or DBNull ? null : Convert.ToInt32(result) == 1;
+    }
+
     /// <summary>Changes allowlist enforcement only when the caller owns the server.</summary>
     public async Task<bool> SetAllowlistEnabledAsync(
         string serverId, string ownerSteamId64, bool enabled, CancellationToken cancellationToken)
