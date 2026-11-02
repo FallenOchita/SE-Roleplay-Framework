@@ -5,6 +5,7 @@ $publish = Join-Path $root 'publish'
 $artifacts = Join-Path $root 'artifacts'
 $iss = Join-Path $PSScriptRoot 'SE1-RP-Launcher.iss'
 $installer = Join-Path $artifacts 'SE1-RP-Launcher-Setup-0.2.0-x64.exe'
+$commit = if ($env:LAUNCHER_COMMIT_SHA) { $env:LAUNCHER_COMMIT_SHA } else { 'local-build' }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw 'The .NET 8 SDK is required. Install it from https://dotnet.microsoft.com/download/dotnet/8.0.'
@@ -21,12 +22,11 @@ if (-not $iscc) {
 
 New-Item -ItemType Directory -Force -Path $publish, $artifacts | Out-Null
 
-dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $publish
+dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true "-p:LauncherCommitSha=$commit" -o $publish
 if ($LASTEXITCODE -ne 0) {
     throw 'dotnet publish failed.'
 }
 
-# Override the .iss OutputDir so the installer always lands in launcher/artifacts.
 & $iscc "/O$artifacts" $iss
 if ($LASTEXITCODE -ne 0) {
     throw 'Inno Setup compilation failed.'
