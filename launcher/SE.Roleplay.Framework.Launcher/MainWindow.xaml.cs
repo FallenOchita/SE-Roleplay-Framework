@@ -62,10 +62,12 @@ public partial class MainWindow : Window
                     var pair = await _directoryAuthorization.RefreshAsync(_settings.ServerDirectoryUrl, refresh, _settings.SteamId64);
                     _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
                     await _settingsStore.SaveAsync(_settings);
+                    UpdateSteamStatus();
                     FrameworkStatusText.Text = "Directory account session restored.";
                 }
                 catch (Exception ex)
                 {
+                    UpdateSteamStatus();
                     FrameworkStatusText.Text = $"Could not restore directory session; saved credentials were retained for retry. ({ex.Message})";
                 }
             }
@@ -83,7 +85,7 @@ public partial class MainWindow : Window
     private void UpdateSteamStatus()
     {
         var signedIn = !string.IsNullOrWhiteSpace(_settings.SteamId64);
-        var directorySignedIn = !string.IsNullOrWhiteSpace(_settings.ProtectedDirectoryRefreshToken);
+        var directorySignedIn = _directoryAuthorization.HasAccessToken;
         SteamAccountText.Text = signedIn
             ? $"Steam ID: {_settings.SteamId64}" + (directorySignedIn ? " · Directory connected" : " · Directory not connected")
             : "Steam not connected";
