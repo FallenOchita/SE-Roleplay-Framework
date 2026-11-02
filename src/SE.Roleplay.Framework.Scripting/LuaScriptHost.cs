@@ -76,8 +76,13 @@ namespace SE.Roleplay.Framework.Scripting
         }
 
         /// <summary>Dispatches a command only after checking its required permission in the host.</summary>
-        public bool DispatchCommand(ulong platformId, string displayName, string commandName, IReadOnlyList<string> arguments)
+        public bool DispatchCommand(ulong platformId, string displayName, string commandName, IReadOnlyList<string> arguments) =>
+            DispatchCommand(platformId, displayName, commandName, arguments, message => _reply(platformId, message));
+
+        public bool DispatchCommand(ulong platformId, string displayName, string commandName,
+            IReadOnlyList<string> arguments, Action<string> reply)
         {
+            if (reply == null) throw new ArgumentNullException(nameof(reply));
             if (platformId == 0) return false;
             if (string.IsNullOrWhiteSpace(commandName)) return false;
             RegisteredCommand registration;
@@ -89,7 +94,7 @@ namespace SE.Roleplay.Framework.Scripting
 
             if (!_permissions.HasPermission(platformId, registration.Definition.RequiredPermission))
             {
-                _reply(platformId, "You do not have permission to use /" + registration.Definition.Name + ".");
+                reply("You do not have permission to use /" + registration.Definition.Name + ".");
                 return false;
             }
 
@@ -107,14 +112,14 @@ namespace SE.Roleplay.Framework.Scripting
                     {
                         var response = result.ToPrintString();
                         if (!string.IsNullOrWhiteSpace(response))
-                            _reply(platformId, response.Length > 2048 ? response.Substring(0, 2048) : response);
+                            reply(response.Length > 2048 ? response.Substring(0, 2048) : response);
                     }
                     return true;
                 }
                 catch (Exception exception)
                 {
                     _logger("Lua command /" + registration.Definition.Name + " in " + module.Name + " failed: " + exception.Message);
-                    _reply(platformId, "That RP command could not be completed.");
+                    reply("That RP command could not be completed.");
                     return false;
                 }
             }
