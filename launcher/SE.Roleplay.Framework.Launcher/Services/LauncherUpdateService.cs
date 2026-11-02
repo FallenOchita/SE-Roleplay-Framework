@@ -42,23 +42,28 @@ public sealed class LauncherUpdateService
             var latestCommit = manifest.RootElement.TryGetProperty("commit", out var commit)
                 ? commit.GetString() ?? string.Empty : string.Empty;
             var installedCommit = GetInstalledCommit();
-            if (string.IsNullOrWhiteSpace(latestCommit) ||
-                installedCommit.Length != 40 ||
-                !installedCommit.All(Uri.IsHexDigit) ||
-                string.Equals(latestCommit, installedCommit, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(latestCommit))
                 return false;
 
-            // Only offer a build that is ahead of the installed commit; never downgrade a newer local build.
-            var compareUrl = "https://api.github.com/repos/FallenOchita/SE-Roleplay-Framework/compare/" +
-                             Uri.EscapeDataString(installedCommit) + "..." + Uri.EscapeDataString(latestCommit);
-            using var compareResponse = await Client.GetAsync(compareUrl);
-            if (!compareResponse.IsSuccessStatusCode)
-                return false;
-            using var comparison = JsonDocument.Parse(await compareResponse.Content.ReadAsStringAsync());
-            var compareStatus = comparison.RootElement.TryGetProperty("status", out var status)
-                ? status.GetString() : null;
-            if (!string.Equals(compareStatus, "ahead", StringComparison.OrdinalIgnoreCase))
-                return false;
+            var hasInstalledCommit = installedCommit.Length == 40 && installedCommit.All(Uri.IsHexDigit);
+            if (hasInstalledCommit)
+            {
+                if (string.Equals(latestCommit, installedCommit, StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                // Only offer a build that is ahead of the installed commit; never downgrade a newer local build.
+                var compareUrl = "https://api.github.com/repos/FallenOchita/SE-Roleplay-Framework/compare/" +
+                                 Uri.EscapeDataString(installedCommit) + "..." + Uri.EscapeDataString(latestCommit);
+                using var compareResponse = await Client.GetAsync(compareUrl);
+                if (!compareResponse.IsSuccessStatusCode)
+                    return false;
+                using var comparison = JsonDocument.Parse(await compareResponse.Content.ReadAsStringAsync());
+                var compareStatus = comparison.RootElement.TryGetProperty("status", out var status)
+                    ? status.GetString() : null;
+                if (!string.Equals(compareStatus, "ahead", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            // Legacy 0.2.0 installs have no embedded commit yet; offer the first metadata-enabled build.
 
             var installerUrl = FindAssetUrl(assets, InstallerName);
             var checksumUrl = FindAssetUrl(assets, InstallerName + ".sha256");
@@ -90,10 +95,19 @@ public sealed class LauncherUpdateService
             Application.Current.Shutdown();
             return true;
         }
+        catch (HttpRequestException)
+        {
+            // Network and GitHub rate-limit failures must not prevent the launcher from opening.
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
         catch (Exception exception)
         {
             MessageBox.Show(owner,
-                $"The launcher could not check or install an update. You can keep using the current version.\n\n{exception.Message}",
+                $"The launcher could not install the update. You can keep using the current version.\n\n{exception.Message}",
                 "Launcher update unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
