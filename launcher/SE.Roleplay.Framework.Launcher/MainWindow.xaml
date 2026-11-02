@@ -39,7 +39,7 @@
      <TextBlock Text="SE1 ROLEPLAY" FontSize="23" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,8,0,28"/>
      <Button x:Name="HomeNav" Content="HOME" Click="HomeNav_Click"/>
      <Button x:Name="ServersNav" Content="BROWSE SERVERS" Click="ServersNav_Click"/>
-     <Button x:Name="CharactersNav" Content="CHARACTERS" Click="CharactersNav_Click"/>
+     <Button x:Name="CharactersNav" Content="PROFILE &amp; OWNER" Click="CharactersNav_Click"/>
      <Button x:Name="SettingsNav" Content="SETTINGS" Click="SettingsNav_Click"/>
     </StackPanel>
     <StackPanel DockPanel.Dock="Bottom" Margin="0,20,0,0">
