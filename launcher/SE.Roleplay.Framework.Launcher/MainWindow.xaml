@@ -145,17 +145,60 @@
       </Grid>
      </StackPanel>
     </ScrollViewer>
-    <ScrollViewer x:Name="CharactersPage" Visibility="Collapsed">
-     <Border Background="{StaticResource PanelBrush}" Padding="22" CornerRadius="10">
-      <StackPanel>
-       <TextBlock Text="SERVER-SPECIFIC CHARACTERS" FontSize="20" FontWeight="Bold"/>
-       <TextBlock Text="Characters belong to individual SE1 Torch servers. Your character on one community is separate from your character on another." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,10,0,12"/>
-       <TextBlock Text="CURRENT STATUS" Foreground="{StaticResource AccentBrush}" FontSize="11" FontWeight="Bold"/>
-       <TextBlock Text="The server-side character system is available through in-game chat commands. Select and join your community, then use !rp character list, !rp character create &quot;Name&quot;, !rp character select 1, or !rp character delete 1." TextWrapping="Wrap" Margin="0,6,0,12"/>
-       <TextBlock Text="Launcher-based character management requires a secure server API and Steam account authentication handshake. That integration is not connected yet; this page does not pretend to edit server data locally." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"/>
-       <Button Content="BROWSE SERVERS" HorizontalAlignment="Left" Margin="0,18,0,0" Click="BrowseServers_Click"/>
-      </StackPanel>
-     </Border>
+    <ScrollViewer x:Name="CharactersPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+     <StackPanel>
+      <Border Background="{StaticResource PanelBrush}" Padding="22" CornerRadius="10" Margin="0,0,0,16">
+       <StackPanel>
+        <TextBlock Text="PLAYER PROFILE" FontSize="20" FontWeight="Bold"/>
+        <TextBlock Text="Your launcher identity is linked to the Steam account verified by the directory." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,12"/>
+        <TextBlock Text="VERIFIED STEAMID64" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
+        <TextBlock x:Name="ProfileSteamIdText" Text="Not connected" Margin="0,4,0,12"/>
+        <TextBlock Text="DISPLAY NAME (40 CHARACTERS MAX)" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
+        <TextBox x:Name="ProfileDisplayNameBox" Padding="9" Margin="0,5,0,12" MaxLength="40"/>
+        <TextBlock Text="BIOGRAPHY (500 CHARACTERS MAX)" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold"/>
+        <TextBox x:Name="ProfileBiographyBox" Padding="9" Margin="0,5,0,12" MaxLength="500" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" VerticalScrollBarVisibility="Auto"/>
+        <WrapPanel>
+         <Button Content="SAVE PROFILE" Click="SaveProfile_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+         <Button Content="REFRESH PROFILE" Click="RefreshAccount_Click"/>
+        </WrapPanel>
+        <TextBlock x:Name="ProfileStatusText" Text="Sign in with Steam to load your directory profile." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+       </StackPanel>
+      </Border>
+      <Border Background="{StaticResource PanelBrush}" Padding="22" CornerRadius="10">
+       <StackPanel>
+        <TextBlock Text="SERVER OWNER MANAGEMENT" FontSize="20" FontWeight="Bold"/>
+        <TextBlock Text="Servers registered to your verified Steam account appear here. New server API keys are displayed only when created or rotated; copy them to your server configuration and keep them private." TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,6,0,12"/>
+        <DockPanel Margin="0,0,0,8">
+         <TextBlock Text="YOUR SERVERS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+         <Button DockPanel.Dock="Right" Content="REFRESH" Click="RefreshAccount_Click"/>
+        </DockPanel>
+        <ListBox x:Name="OwnedServersList" DisplayMemberPath="Name" MinHeight="65" MaxHeight="150" Margin="0,0,0,10"/>
+        <WrapPanel Margin="0,0,0,14">
+         <Button Content="ROTATE SELECTED API KEY" Click="RotateServerKey_Click"/>
+         <Button Content="DELETE SELECTED SERVER" Click="DeleteOwnedServer_Click"/>
+        </WrapPanel>
+        <TextBlock Text="REGISTER A SERVER" FontWeight="Bold" Margin="0,4,0,8"/>
+        <TextBlock Text="SERVER NAME" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+        <TextBox x:Name="OwnerServerNameBox" Padding="8" Margin="0,4,0,8" MaxLength="80"/>
+        <TextBlock Text="DESCRIPTION" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+        <TextBox x:Name="OwnerServerDescriptionBox" Padding="8" Margin="0,4,0,8" MaxLength="1000" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="55"/>
+        <Grid>
+         <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+         <StackPanel Grid.Column="0" Margin="0,0,8,0"><TextBlock Text="ADDRESS" Foreground="{StaticResource MutedBrush}" FontSize="10"/><TextBox x:Name="OwnerServerAddressBox" Padding="8" Margin="0,4,0,8"/></StackPanel>
+         <StackPanel Grid.Column="1" Margin="0,0,8,0"><TextBlock Text="PORT" Foreground="{StaticResource MutedBrush}" FontSize="10"/><TextBox x:Name="OwnerServerPortBox" Text="27016" Padding="8" Margin="0,4,0,8"/></StackPanel>
+         <StackPanel Grid.Column="2"><TextBlock Text="MAX PLAYERS" Foreground="{StaticResource MutedBrush}" FontSize="10"/><TextBox x:Name="OwnerServerMaxPlayersBox" Text="50" Padding="8" Margin="0,4,0,8"/></StackPanel>
+        </Grid>
+        <TextBlock Text="REGION" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+        <TextBox x:Name="OwnerServerRegionBox" Padding="8" Margin="0,4,0,8" MaxLength="80"/>
+        <TextBlock Text="TAGS (COMMA SEPARATED)" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+        <TextBox x:Name="OwnerServerTagsBox" Padding="8" Margin="0,4,0,8"/>
+        <Button Content="REGISTER SERVER" HorizontalAlignment="Left" Click="RegisterOwnedServer_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+        <TextBlock Text="NEW / ROTATED SERVER API KEY — COPY AND STORE SECURELY" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="0,14,0,4"/>
+        <TextBox x:Name="OwnerServerApiKeyBox" IsReadOnly="True" Padding="8" TextWrapping="Wrap" MinHeight="42"/>
+        <TextBlock x:Name="OwnerStatusText" Text="Sign in with Steam and connect the directory to manage your servers." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+       </StackPanel>
+      </Border>
+     </StackPanel>
     </ScrollViewer>
     <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed">
      <Border Background="{StaticResource PanelBrush}" Padding="22" CornerRadius="10">
