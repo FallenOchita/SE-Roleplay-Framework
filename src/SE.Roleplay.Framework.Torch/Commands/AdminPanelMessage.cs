@@ -21,6 +21,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
         [DataMember(Order = 9)] public string Message { get; set; } = string.Empty;
         [DataMember(Order = 10)] public bool AllowlistEnabled { get; set; }
         [DataMember(Order = 11)] public string[] Members { get; set; } = Array.Empty<string>();
+        [DataMember(Order = 12)] public int MemberCount { get; set; }
 
         public static AdminPanelMessage Deserialize(byte[] payload)
         {
