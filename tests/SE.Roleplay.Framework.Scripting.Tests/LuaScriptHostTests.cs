@@ -80,6 +80,71 @@ public sealed class LuaScriptHostTests
     }
 
     [Fact]
+    public void LuaChatChannels_RequireChannelPermissions_ValidateAndRateLimitPerChannel()
+    {
+        const ulong playerId = 76561198000000001UL;
+        var permissions = new PermissionService();
+        var deliveries = new List<string>();
+        using var host = new LuaScriptHost(permissions, (_, _) => { }, _ => { },
+            sendChatChannel: (sender, channel, message) =>
+            {
+                deliveries.Add(sender + ":" + channel + ":" + message);
+                return true;
+            });
+        var loaded = host.Load("channels.lua",
+            "rp.registerCommand('say', 'rp.say', function(player, args) " +
+            "return tostring(player.chat.send(args[1], args[2])) end)", "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        permissions.Grant(playerId, "rp.say");
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "global", "hello" }));
+        Assert.Empty(deliveries);
+
+        permissions.Grant(playerId, "rp.chat.global");
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "GLOBAL", "hello" }));
+        Assert.Equal(new[] { playerId + ":global:hello" }, deliveries);
+
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "unknown", "blocked" }));
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "global", new string('x', 281) }));
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "global", "too soon" }));
+        Assert.Single(deliveries);
+
+        permissions.Grant(playerId, "rp.chat.faction");
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "faction", "separate channel cooldown" }));
+        Assert.Equal(2, deliveries.Count);
+        Assert.EndsWith(":faction:separate channel cooldown", deliveries[1]);
+    }
+
+    [Fact]
+    public void LuaChatChannels_UsesTrustedPlayerIdentityAndFailsClosedWhenTransportThrows()
+    {
+        const ulong playerId = 76561198000000001UL;
+        const ulong otherPlayerId = 76561198000000002UL;
+        var permissions = new PermissionService();
+        var deliveredSender = 0UL;
+        using var host = new LuaScriptHost(permissions, (_, _) => { }, _ => { },
+            sendChatChannel: (sender, channel, message) =>
+            {
+                deliveredSender = sender;
+                throw new System.InvalidOperationException("transport unavailable");
+            });
+        var loaded = host.Load("channels.lua",
+            "rp.registerCommand('say', 'rp.say', function(player, args) " +
+            "return tostring(player.chat.send('global', args[1])) end)", "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        permissions.Grant(playerId, "rp.say");
+        permissions.Grant(playerId, "rp.chat.global");
+        permissions.Grant(otherPlayerId, "rp.say");
+        permissions.Grant(otherPlayerId, "rp.chat.global");
+
+        Assert.True(host.DispatchCommand(otherPlayerId, "Jordan", "say", new[] { "message" }));
+        Assert.Equal(otherPlayerId, deliveredSender);
+        Assert.True(host.DispatchCommand(playerId, "Alex", "say", new[] { "message" }));
+        Assert.Equal(playerId, deliveredSender);
+    }
+
+    [Fact]
     public void Load_RegistersPlayerLifecycleEvents()
     {
         var logs = new List<string>();

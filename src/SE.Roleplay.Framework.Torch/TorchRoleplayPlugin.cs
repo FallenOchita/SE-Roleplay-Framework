@@ -240,6 +240,18 @@ namespace SE.Roleplay.Framework.Torch
                     utilities.InvokeOnGameThread(() =>
                         MyAPIGateway.Utilities?.SendMessage("[RP] " + message));
                     return true;
+                },
+                sendChatChannel: (platformId, channel, message) =>
+                {
+                    // Global delivery is supported by the current Torch adapter.
+                    // Local/faction routing remains fail-closed until trusted position and faction providers exist.
+                    if (!string.Equals(channel, "global", StringComparison.Ordinal))
+                        return false;
+                    var utilities = MyAPIGateway.Utilities;
+                    if (utilities == null) return false;
+                    utilities.InvokeOnGameThread(() =>
+                        MyAPIGateway.Utilities?.SendMessage("[RP:GLOBAL] " + message));
+                    return true;
                 });
             LuaCommandModule.Host = _luaScriptHost;
 

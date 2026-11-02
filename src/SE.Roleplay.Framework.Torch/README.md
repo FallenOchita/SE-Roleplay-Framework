@@ -65,7 +65,7 @@ The loader accepts up to 50 files, each no larger than 64 KiB. Each module has a
 - `rp.on("playerJoined", function(player) ... end)` — player connected after profile load.
 - `rp.on("playerLeft", function(player) ... end)` — player disconnected.
 
-The player table contains `platformId` and `name`; command arguments are a 1-based Lua array. A module may register up to 20 handlers for each supported player event. Command names are unique across loaded modules.
+The player table contains `platformId`, `name`, and a `chat` capability. `player.chat.broadcast(message)` requires `rp.chat.broadcast`. `player.chat.send(channel, message)` accepts `global`, `faction`, or `local` and requires the matching `rp.chat.global`, `rp.chat.faction`, or `rp.chat.local` permission. The Torch adapter currently delivers the global channel only (`[RP:GLOBAL]`); faction and local sends fail closed until trusted faction-membership and world-position routing providers are integrated. Channel messages are limited to 280 characters and rate-limited per player/channel. Lua cannot supply or spoof the sender SteamID. Command arguments are a 1-based Lua array. A module may register up to 20 handlers for each supported player event. Command names are unique across loaded modules.
 
 Example:
 
