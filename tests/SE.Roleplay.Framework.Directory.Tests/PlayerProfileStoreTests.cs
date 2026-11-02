@@ -93,6 +93,23 @@ public sealed class PlayerProfileStoreTests
     }
 
     [Fact]
+    public async Task ServerApiKeyCanManageOnlyItsOwnAllowlist()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var (server, apiKey) = await fixture.Servers.RegisterOwnedAsync(CreateServerRequest("Server Admin"), Owner, CancellationToken.None);
+        var memberships = new ServerMembershipStore(fixture.Database, TimeProvider.System);
+
+        Assert.Equal(Owner, await memberships.GetServerOwnerSteamId64Async(server.Id, apiKey, CancellationToken.None));
+        Assert.Null(await memberships.GetServerOwnerSteamId64Async(server.Id, "invalid-key", CancellationToken.None));
+        Assert.Null(await memberships.GetServerOwnerSteamId64Async("unknown-server", apiKey, CancellationToken.None));
+
+        Assert.True(await memberships.AddMemberAsync(server.Id, Owner, Player, "added from Torch", CancellationToken.None));
+        Assert.True(await memberships.SetAllowlistEnabledAsync(server.Id, Owner, true, CancellationToken.None));
+        Assert.True(await memberships.GetAllowlistEnabledAsync(server.Id, Owner, CancellationToken.None));
+        Assert.Single(await memberships.GetMembersAsync(server.Id, Owner, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ServerAdmissionRequiresValidServerKeyAndFailsClosedWhenAllowlistEnabled()
     {
         using var fixture = await Fixture.CreateAsync();

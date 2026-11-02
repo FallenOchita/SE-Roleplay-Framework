@@ -662,6 +662,63 @@ app.MapDelete("/api/launcher/owner/servers/{serverId}/members/{steamId64}", asyn
         ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization("LauncherBearer").RequireRateLimiting("owner-writes");
 
+// Server-side administration endpoints authenticate with the server's private API key.
+// The key never leaves the Torch process and is not exposed to the launcher.
+app.MapGet("/api/servers/{serverId}/allowlist", async Task<IResult> (
+    string serverId, HttpContext context, ServerMembershipStore memberships,
+    CancellationToken cancellationToken) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key))
+        return Results.Unauthorized();
+    var ownerSteamId = await memberships.GetServerOwnerSteamId64Async(serverId, key.ToString(), cancellationToken);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    var enabled = await memberships.GetAllowlistEnabledAsync(serverId, ownerSteamId, cancellationToken);
+    if (enabled is null) return Results.NotFound();
+    var members = await memberships.GetMembersAsync(serverId, ownerSteamId, cancellationToken);
+    return Results.Ok(new { serverId, allowlistEnabled = enabled.Value, members });
+});
+
+app.MapPost("/api/servers/{serverId}/allowlist/members", async Task<IResult> (
+    string serverId, HttpContext context, AddServerMemberRequest request,
+    ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key))
+        return Results.Unauthorized();
+    var ownerSteamId = await memberships.GetServerOwnerSteamId64Async(serverId, key.ToString(), cancellationToken);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    if (!PlayerProfileStore.IsValidSteamId64(request.SteamId64) || request.Note is { Length: > 200 })
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+            { ["member"] = new[] { "A valid SteamID64 and a note of 200 characters or fewer are required." } });
+    var added = await memberships.AddMemberAsync(
+        serverId, ownerSteamId, request.SteamId64, request.Note, cancellationToken);
+    return added ? Results.Ok(new { added = true }) : Results.NotFound();
+});
+
+app.MapDelete("/api/servers/{serverId}/allowlist/members/{steamId64}", async Task<IResult> (
+    string serverId, string steamId64, HttpContext context, ServerMembershipStore memberships,
+    CancellationToken cancellationToken) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key))
+        return Results.Unauthorized();
+    var ownerSteamId = await memberships.GetServerOwnerSteamId64Async(serverId, key.ToString(), cancellationToken);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    return await memberships.RemoveMemberAsync(serverId, ownerSteamId, steamId64, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+});
+
+app.MapPut("/api/servers/{serverId}/allowlist", async Task<IResult> (
+    string serverId, HttpContext context, UpdateServerAdmissionSettingsRequest request,
+    ServerMembershipStore memberships, CancellationToken cancellationToken) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-Server-Api-Key", out var key))
+        return Results.Unauthorized();
+    var ownerSteamId = await memberships.GetServerOwnerSteamId64Async(serverId, key.ToString(), cancellationToken);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    return await memberships.SetAllowlistEnabledAsync(
+        serverId, ownerSteamId, request.AllowlistEnabled, cancellationToken)
+        ? Results.NoContent() : Results.NotFound();
+});
+
 // Game-server admission decisions are authenticated with the server's own API key.
 // Unknown servers and invalid keys intentionally share the same response.
 app.MapGet("/api/servers/{serverId}/admission/{steamId64}", async Task<IResult> (
