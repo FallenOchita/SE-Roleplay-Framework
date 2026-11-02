@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using SE.Roleplay.Framework.Core.Abstractions;
 using Torch.Commands;
 using Torch.Commands.Permissions;
+using VRage.Game.ModAPI;
 
 namespace SE.Roleplay.Framework.Torch.Commands
 {
@@ -69,8 +70,13 @@ namespace SE.Roleplay.Framework.Torch.Commands
             catch (Exception exception) { Respond("Could not check permission: " + exception.Message); }
         }
 
-        private static bool TryParseSteamId(string value, out ulong steamId) =>
-            value != null && value.Length == 17 && value.All(character => character >= '0' && character <= '9') && ulong.TryParse(value, out steamId);
+        private static bool TryParseSteamId(string value, out ulong steamId)
+        {
+            steamId = 0;
+            return value != null && value.Length == 17 &&
+                value.All(character => character >= '0' && character <= '9') &&
+                ulong.TryParse(value, out steamId);
+        }
 
         private static bool IsValidPermission(string permission) =>
             !string.IsNullOrWhiteSpace(permission) && permission.Trim().Length <= 100 && !permission.Any(char.IsWhiteSpace);
