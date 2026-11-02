@@ -1,5 +1,5 @@
 using System;
-using System.Threading.Tasks;
+using System.Threading.Tasks;\nusing System.Linq;
 using SE.Roleplay.Framework.Core.Chat;
 using Xunit;
 
@@ -52,6 +52,16 @@ public sealed class ChatModerationServiceTests
     {
         var service = new ChatModerationService();
         Assert.Throws<ArgumentException>(() => service.AddBlockedPhrase(phrase));
+    }
+
+    [Fact]
+    public void RuleCountIsCappedAtFiveHundred()
+    {
+        var service = new ChatModerationService();
+        service.ReplaceRules(Enumerable.Range(0, 500).Select(index => "phrase-" + index));
+
+        Assert.Throws<InvalidOperationException>(() => service.AddBlockedPhrase("one-more"));
+        Assert.Equal(500, service.GetBlockedPhrases().Count);
     }
 
     [Fact]
