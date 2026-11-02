@@ -103,7 +103,7 @@ Torch and Space Engineers ship proprietary runtime assemblies. They are not incl
 - Windows with the .NET Framework 4.8 targeting pack
 - .NET SDK capable of building SDK-style `net48` projects
 - Torch installation folder containing `Torch.dll`, `Torch.API.dll`, `Torch.Server.dll`, and `NLog.dll`
-- Space Engineers dedicated server `DedicatedServer64` folder containing `VRage.Game.dll` and `VRage.Library.dll`
+- Space Engineers dedicated server `DedicatedServer64` folder containing `VRage.Game.dll`, `VRage.Library.dll`, and `VRage.Math.dll`
 
 Build from the repository root:
 
