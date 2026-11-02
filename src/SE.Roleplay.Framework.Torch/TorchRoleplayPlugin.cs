@@ -243,14 +243,23 @@ namespace SE.Roleplay.Framework.Torch
                 },
                 sendChatChannel: (platformId, channel, message) =>
                 {
-                    // Global delivery is supported by the current Torch adapter.
-                    // Local/faction routing remains fail-closed until trusted position and faction providers exist.
-                    if (!string.Equals(channel, "global", StringComparison.Ordinal))
-                        return false;
                     var utilities = MyAPIGateway.Utilities;
                     if (utilities == null) return false;
+
+                    if (string.Equals(channel, "global", StringComparison.Ordinal))
+                    {
+                        utilities.InvokeOnGameThread(() =>
+                            MyAPIGateway.Utilities?.SendMessage("[RP:GLOBAL] " + message));
+                        return true;
+                    }
+
+                    if (!string.Equals(channel, "local", StringComparison.Ordinal) &&
+                        !string.Equals(channel, "faction", StringComparison.Ordinal))
+                        return false;
+
+                    // Recipients and sender identity are resolved from authoritative SE server APIs.
                     utilities.InvokeOnGameThread(() =>
-                        MyAPIGateway.Utilities?.SendMessage("[RP:GLOBAL] " + message));
+                        LuaChatNetworkHandler.Send(platformId, channel, message, _context?.Logger));
                     return true;
                 });
             LuaCommandModule.Host = _luaScriptHost;
