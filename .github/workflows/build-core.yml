@@ -31,3 +31,6 @@ jobs:
 
       - name: Run Lua scripting runtime tests
         run: dotnet test tests/SE.Roleplay.Framework.Scripting.Tests/SE.Roleplay.Framework.Scripting.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Validate JavaScript launcher UI
+        run: node --check web/launcher-ui/app.js
