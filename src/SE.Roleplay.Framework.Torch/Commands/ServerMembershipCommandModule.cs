@@ -163,6 +163,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
                         Message = "Allowlist information refreshed.",
                         AllowlistEnabled = (bool?)snapshot["allowlistEnabled"] == true,
                         // Keep the response below SE1's secure-message packet ceiling.
+                        MemberCount = members.Count,
                         Members = members
                             .Select(item => (string?)item?["steamId64"] ?? (string?)item?["SteamId64"] ?? string.Empty)
                             .Where(value => !string.IsNullOrWhiteSpace(value))
