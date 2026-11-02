@@ -25,3 +25,12 @@ jobs:
         run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --verbosity normal
       - name: Build server directory API
         run: dotnet build services/SE.Roleplay.Framework.Directory/SE.Roleplay.Framework.Directory.csproj --configuration Release
+
+      - name: Build Lua scripting runtime
+        run: dotnet build src/SE.Roleplay.Framework.Scripting/SE.Roleplay.Framework.Scripting.csproj --configuration Release
+
+      - name: Run Lua scripting runtime tests
+        run: dotnet test tests/SE.Roleplay.Framework.Scripting.Tests/SE.Roleplay.Framework.Scripting.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Validate JavaScript launcher UI
+        run: node --check web/launcher-ui/app.js

@@ -1,0 +1,18 @@
+:root { font-family: "Segoe UI", sans-serif; color: #e8f0ed; background: #10171d; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.shell { max-width: 1100px; margin: 0 auto; padding: 42px 28px; }
+.eyebrow { color: #83d9b0; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+h1 { margin: 8px 0; font-size: clamp(32px, 5vw, 52px); }
+.intro, #status, .details { color: #aab9c2; }
+.toolbar { display: flex; align-items: center; gap: 12px; margin: 28px 0 16px; }
+.toolbar label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+input { flex: 1; min-width: 0; padding: 12px; border: 1px solid #35444d; border-radius: 7px; color: inherit; background: #1b252d; }
+button { padding: 11px 16px; border: 0; border-radius: 7px; color: #07150f; background: #83d9b0; font-weight: 700; cursor: pointer; }
+.servers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.server-card { padding: 18px; border: 1px solid #30404a; border-radius: 10px; background: #19232b; }
+.server-card h2 { margin: 0 0 8px; font-size: 19px; }
+.server-card p { line-height: 1.45; }
+.server-card button { margin-top: 8px; }
+.empty { color: #aab9c2; }
+@media (max-width: 600px) { .toolbar { align-items: stretch; flex-direction: column; } }

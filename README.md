@@ -121,3 +121,14 @@ The hosted CI validates the host-neutral core/tests and directory API. It cannot
 - Torch player counts are based on join/leave events observed after the plugin attaches. If the plugin loads while players are already connected, the initial count can be temporarily low until those players reconnect.
 - Player profile permission grants are persisted with the profile and restored on load. Permission changes must go through `IPlayerProfileService` so they are saved; the standalone in-memory `IPermissionService` remains a separate runtime permission cache.
 - Do not copy proprietary game or Torch assemblies into this repository.
+
+
+## Multi-language architecture
+
+The framework is built around three cooperating languages:
+
+- **C#** is the trusted platform layer: server/game integration, framework services, launcher shell, authentication, persistence, permissions, and networking.
+- **JavaScript** is the presentation layer for browser-based launcher and community interfaces. The starter UI and its versioned message contract live in `web/launcher-ui`. Privileged operations remain in the C# host.
+- **Lua** is the community scripting language for roleplay gameplay extensions. The isolated MoonSharp runtime foundation lives in `src/SE.Roleplay.Framework.Scripting`; it starts with a restricted sandbox and source-size limits.
+
+The initial scripting/UI foundation is intentionally narrow. The next integration stage will connect Lua lifecycle hooks to the Torch adapter and host the JavaScript interface inside the desktop launcher through a validated WebView2 message bridge.
