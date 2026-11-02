@@ -1,0 +1,53 @@
+name: Build SE1 Roleplay Launcher
+
+on:
+  pull_request:
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher-build.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-launcher:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore launcher
+        run: dotnet restore ./launcher/SE.Roleplay.Framework.Launcher/SE.Roleplay.Framework.Launcher.csproj
+
+      - name: Build launcher
+        run: dotnet build ./launcher/SE.Roleplay.Framework.Launcher/SE.Roleplay.Framework.Launcher.csproj --configuration Release --no-restore
+
+      - name: Publish self-contained Windows x64 launcher
+        run: >-
+          dotnet publish ./launcher/SE.Roleplay.Framework.Launcher/SE.Roleplay.Framework.Launcher.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          --output ./launcher/artifacts/ci-publish
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v6
+        with:
+          name: SE1-RP-Launcher-Windows-x64-publish
+          path: launcher/artifacts/ci-publish/
+          if-no-files-found: error
