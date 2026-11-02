@@ -5,8 +5,10 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.2.0</Version>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyMetadata Include="LauncherCommit" Value="$(LauncherCommitSha)" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 </Project>

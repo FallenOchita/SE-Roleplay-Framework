@@ -9,8 +9,13 @@ on:
       - "launcher/**"
       - ".github/workflows/launcher-installer.yml"
   push:
+    branches:
+      - main
     tags:
       - "launcher-v*"
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher-installer.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,9 +40,11 @@ jobs:
 
       - name: Build self-contained launcher installer
         shell: pwsh
+        env:
+          LAUNCHER_COMMIT_SHA: ${{ github.sha }}
         run: ./launcher/installer/build-installer.ps1
 
-      - name: Verify installer and generate SHA-256 checksum
+      - name: Verify installer and generate update metadata
         shell: pwsh
         run: |
           $installer = Get-Item "./launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe" -ErrorAction Stop
@@ -58,24 +65,58 @@ jobs:
 
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
+
+          @{
+            version = "0.2.0"
+            commit = "${{ github.sha }}"
+            channel = "development"
+          } | ConvertTo-Json -Compress | Set-Content -Encoding utf8NoBOM "./launcher/artifacts/launcher-update.json"
+
           Write-Host "Verified $($installer.Name) ($([math]::Round($installer.Length / 1MB, 2)) MB)"
           Write-Host "SHA256: $hash"
 
-      - name: Upload release-candidate installer
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v6
         with:
           name: SE1-RP-Launcher-Windows-x64
           path: |
             launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe
             launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe.sha256
+            launcher/artifacts/launcher-update.json
           if-no-files-found: error
           retention-days: 14
 
-      - name: Attach installer to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Move development release tag to this commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          git tag -f launcher-dev "$GITHUB_SHA"
+          git push --force origin refs/tags/launcher-dev
+
+      - name: Publish or update rolling development release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          tag_name: launcher-dev
+          name: SE1 Roleplay Launcher - Latest Development Build
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          body: |
+            Automatically updated from the latest successful push to main that changes the launcher.
+            This is a development build and may contain unfinished features.
           files: |
             launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe
             launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe.sha256
+            launcher/artifacts/launcher-update.json
+
+      - name: Publish versioned launcher release
+        if: startsWith(github.ref, 'refs/tags/launcher-v')
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          overwrite_files: true
+          files: |
+            launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe
+            launcher/artifacts/SE1-RP-Launcher-Setup-0.2.0-x64.exe.sha256
+            launcher/artifacts/launcher-update.json
