@@ -20,7 +20,6 @@ namespace SE.Roleplay.Framework.Client.UI
         private readonly MyGuiControlLabel _status;
         private readonly MyGuiControlLabel _members;
         private bool _allowlistEnabled;
-        private bool _requestPending;
 
         public AdminPanelScreen(
             Action refresh,
@@ -74,19 +73,19 @@ namespace SE.Roleplay.Framework.Client.UI
             Controls.Add(new MyGuiControlButton(
                 position: new Vector2(0f, 0.35f),
                 text: "Close",
-                onButtonClick: _ => CloseScreen()));
+                onButtonClick: _ => HandleClose()));
         }
 
         private void AddMember()
         {
-            var steamId = _steamIdInput.Text.Trim();
+            var steamId = _steamIdInput.Text.ToString().Trim();
             if (!IsSteamId64(steamId))
             {
                 _status.Text = "Enter a valid 17-digit SteamID64.";
                 return;
             }
 
-            var note = _noteInput.Text ?? string.Empty;
+            var note = _noteInput.Text == null ? string.Empty : _noteInput.Text.ToString();
             if (note.Length > 200)
             {
                 _status.Text = "Notes must be 200 characters or fewer.";
@@ -131,17 +130,13 @@ namespace SE.Roleplay.Framework.Client.UI
             }
         }
 
-        private void CloseScreen()
-        {
-            _active = null;
-            CloseScreenNow();
-        }
+        private void HandleClose() => CloseScreen();
 
-        public override bool CloseScreen(bool isUnloading = false)
+        public override bool CloseScreen()
         {
             _active = null;
             _closed();
-            return base.CloseScreen(isUnloading);
+            return base.CloseScreen();
         }
 
         private static bool IsSteamId64(string value) =>
