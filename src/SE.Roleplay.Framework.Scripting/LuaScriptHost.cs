@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using MoonSharp.Interpreter;
@@ -19,15 +20,19 @@ namespace SE.Roleplay.Framework.Scripting
         private readonly IPermissionService _permissions;
         private readonly Action<ulong, string> _reply;
         private readonly Action<string> _logger;
+        private readonly Func<string, bool>? _broadcastChat;
+        private readonly ConcurrentDictionary<ulong, long> _lastChatBroadcastUtcTicks = new ConcurrentDictionary<ulong, long>();
         private readonly int _maximumInstructions;
         private bool _disposed;
 
         public LuaScriptHost(IPermissionService permissions, Action<ulong, string> reply, Action<string> logger,
-            int maximumInstructions = LuaScriptRuntime.DefaultMaximumInstructionCount)
+            int maximumInstructions = LuaScriptRuntime.DefaultMaximumInstructionCount,
+            Func<string, bool>? broadcastChat = null)
         {
             _permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
             _reply = reply ?? throw new ArgumentNullException(nameof(reply));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _broadcastChat = broadcastChat;
             if (maximumInstructions < 1) throw new ArgumentOutOfRangeException(nameof(maximumInstructions));
             _maximumInstructions = maximumInstructions;
         }
@@ -129,8 +134,11 @@ namespace SE.Roleplay.Framework.Scripting
         public void PublishPlayerJoined(ulong platformId, string displayName) =>
             PublishPlayerEvent("playerJoined", platformId, displayName);
 
-        public void PublishPlayerLeft(ulong platformId, string displayName) =>
+        public void PublishPlayerLeft(ulong platformId, string displayName)
+        {
+            _lastChatBroadcastUtcTicks.TryRemove(platformId, out _);
             PublishPlayerEvent("playerLeft", platformId, displayName);
+        }
 
         public void PublishCharacterCreated(ulong platformId, string displayName, Guid characterId, string name, string description) =>
             PublishCharacterEvent("characterCreated", platformId, displayName, characterId, name, description);
@@ -275,12 +283,61 @@ namespace SE.Roleplay.Framework.Scripting
             module.Script.Globals["rp"] = rp;
         }
 
-        private static Table CreatePlayerTable(Script script, ulong platformId, string displayName)
+        private Table CreatePlayerTable(Script script, ulong platformId, string displayName)
         {
             var player = new Table(script);
             player["platformId"] = platformId.ToString(System.Globalization.CultureInfo.InvariantCulture);
             player["name"] = displayName ?? string.Empty;
+
+            // This capability closes over the trusted platform ID. Lua cannot spoof another player's identity.
+            var chat = new Table(script);
+            chat["broadcast"] = (Func<string, bool>)(message => TryBroadcastChat(platformId, message));
+            player["chat"] = chat;
             return player;
+        }
+
+        private bool TryBroadcastChat(ulong platformId, string message)
+        {
+            if (platformId == 0 || _broadcastChat == null ||
+                !_permissions.HasPermission(platformId, "rp.chat.broadcast"))
+                return false;
+
+            if (string.IsNullOrWhiteSpace(message) || message.Length > 280 ||
+                message.Any(char.IsControl))
+                return false;
+
+            var safeMessage = message.Trim();
+            if (safeMessage.Length == 0 || safeMessage.Length > 280)
+                return false;
+
+            const long minimumIntervalTicks = TimeSpan.TicksPerSecond * 3;
+            while (true)
+            {
+                var now = DateTime.UtcNow.Ticks;
+                if (_lastChatBroadcastUtcTicks.TryGetValue(platformId, out var previous))
+                {
+                    if (now - previous < minimumIntervalTicks)
+                        return false;
+                    if (!_lastChatBroadcastUtcTicks.TryUpdate(platformId, now, previous))
+                        continue;
+                }
+                else if (!_lastChatBroadcastUtcTicks.TryAdd(platformId, now))
+                {
+                    continue;
+                }
+
+                break;
+            }
+
+            try
+            {
+                return _broadcastChat(safeMessage);
+            }
+            catch (Exception exception)
+            {
+                _logger("Lua RP chat broadcast failed: " + exception.Message);
+                return false;
+            }
         }
 
         private static Table CreateArgumentsTable(Script script, IReadOnlyList<string> arguments)

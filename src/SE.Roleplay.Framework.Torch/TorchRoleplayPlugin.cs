@@ -232,7 +232,15 @@ namespace SE.Roleplay.Framework.Torch
             _luaScriptHost = new LuaScriptHost(
                 _context!.Permissions,
                 (platformId, message) => _context?.Logger.Info("[Lua reply to " + platformId + "] " + message),
-                message => _context?.Logger.Info(message));
+                message => _context?.Logger.Info(message),
+                broadcastChat: message =>
+                {
+                    var utilities = MyAPIGateway.Utilities;
+                    if (utilities == null) return false;
+                    utilities.InvokeOnGameThread(() =>
+                        MyAPIGateway.Utilities?.SendMessage("[RP] " + message));
+                    return true;
+                });
             LuaCommandModule.Host = _luaScriptHost;
 
             _ = Task.Run(() =>

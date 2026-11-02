@@ -27,6 +27,59 @@ public sealed class LuaScriptHostTests
     }
 
     [Fact]
+    public void LuaChatBroadcast_RequiresPermission_ValidatesMessage_AndRateLimitsPlayer()
+    {
+        const ulong playerId = 76561198000000001UL;
+        var permissions = new PermissionService();
+        var broadcasts = new List<string>();
+        using var host = new LuaScriptHost(permissions, (_, _) => { }, _ => { },
+            broadcastChat: message => { broadcasts.Add(message); return true; });
+        var loaded = host.Load("chat.lua",
+            "rp.registerCommand('announce', 'rp.announce', function(player, args) " +
+            "if player.chat.broadcast(args[1]) then return 'sent' else return 'blocked' end end)",
+            "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        permissions.Grant(playerId, "rp.announce");
+        Assert.True(host.DispatchCommand(playerId, "Alex", "announce", new[] { "hello world" }));
+        Assert.Empty(broadcasts);
+
+        permissions.Grant(playerId, "rp.chat.broadcast");
+        Assert.True(host.DispatchCommand(playerId, "Alex", "announce", new[] { "hello world" }));
+        Assert.Equal(new[] { "hello world" }, broadcasts);
+
+        Assert.True(host.DispatchCommand(playerId, "Alex", "announce", new[] { new string('x', 281) }));
+        Assert.Equal(1, broadcasts.Count);
+        Assert.True(host.DispatchCommand(playerId, "Alex", "announce", new[] { "second message" }));
+        Assert.Equal(1, broadcasts.Count);
+    }
+
+    [Fact]
+    public void LuaChatBroadcast_UsesInvokingPlayersPermissionContext()
+    {
+        const ulong authorizedPlayerId = 76561198000000001UL;
+        const ulong otherPlayerId = 76561198000000002UL;
+        var permissions = new PermissionService();
+        var broadcasts = new List<string>();
+        using var host = new LuaScriptHost(permissions, (_, _) => { }, _ => { },
+            broadcastChat: message => { broadcasts.Add(message); return true; });
+        var loaded = host.Load("chat.lua",
+            "rp.registerCommand('announce', 'rp.announce', function(player, args) " +
+            "return tostring(player.chat.broadcast(args[1])) end)",
+            "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        permissions.Grant(authorizedPlayerId, "rp.announce");
+        permissions.Grant(authorizedPlayerId, "rp.chat.broadcast");
+        permissions.Grant(otherPlayerId, "rp.announce");
+
+        Assert.True(host.DispatchCommand(otherPlayerId, "Jordan", "announce", new[] { "not authorized" }));
+        Assert.Empty(broadcasts);
+        Assert.True(host.DispatchCommand(authorizedPlayerId, "Alex", "announce", new[] { "authorized" }));
+        Assert.Equal(new[] { "authorized" }, broadcasts);
+    }
+
+    [Fact]
     public void Load_RegistersPlayerLifecycleEvents()
     {
         var logs = new List<string>();
