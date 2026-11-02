@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly GameInstallDetector _gameDetector = new();
     private readonly ServerDirectoryClient _directoryClient = new();
     private readonly SteamOpenIdService _steamSignIn = new();
+    private readonly DesktopAuthorizationService _directoryAuthorization = new();
     private readonly ObservableCollection<ServerListing> _servers = new();
     private readonly ObservableCollection<ServerListing> _visibleServers = new();
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
@@ -52,6 +53,25 @@ public partial class MainWindow : Window
             UpdateHomeEmptyStates();
             UpdateGameStatus();
 
+            if (!string.IsNullOrWhiteSpace(_settings.ProtectedDirectoryRefreshToken) &&
+                !string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl))
+            {
+                try
+                {
+                    var refresh = RefreshTokenProtector.Unprotect(_settings.ProtectedDirectoryRefreshToken);
+                    var pair = await _directoryAuthorization.RefreshAsync(_settings.ServerDirectoryUrl, refresh, _settings.SteamId64);
+                    _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
+                    await _settingsStore.SaveAsync(_settings);
+                    UpdateSteamStatus();
+                    FrameworkStatusText.Text = "Directory account session restored.";
+                }
+                catch (Exception ex)
+                {
+                    UpdateSteamStatus();
+                    FrameworkStatusText.Text = $"Could not restore directory session; saved credentials were retained for retry. ({ex.Message})";
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl))
                 await RefreshServerDirectoryAsync();
         }
@@ -65,7 +85,10 @@ public partial class MainWindow : Window
     private void UpdateSteamStatus()
     {
         var signedIn = !string.IsNullOrWhiteSpace(_settings.SteamId64);
-        SteamAccountText.Text = signedIn ? $"Steam ID: {_settings.SteamId64}" : "Steam not connected";
+        var directorySignedIn = _directoryAuthorization.HasAccessToken;
+        SteamAccountText.Text = signedIn
+            ? $"Steam ID: {_settings.SteamId64}" + (directorySignedIn ? " · Directory connected" : " · Directory not connected")
+            : "Steam not connected";
         SteamSignInButton.Content = signedIn ? "SWITCH STEAM ACCOUNT" : "SIGN IN WITH STEAM";
     }
 
@@ -126,17 +149,31 @@ public partial class MainWindow : Window
             _settings.SteamId64 = steamId;
             await _settingsStore.SaveAsync(_settings);
             UpdateSteamStatus();
-            FrameworkStatusText.Text = "Steam account verified.";
+
+            var directoryUrl = DirectoryUrlBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(directoryUrl)) directoryUrl = _settings.ServerDirectoryUrl;
+            if (!string.IsNullOrWhiteSpace(directoryUrl))
+            {
+                FrameworkStatusText.Text = "Complete the directory authorization in your browser...";
+                var pair = await _directoryAuthorization.AuthorizeAsync(directoryUrl, steamId);
+                _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
+                await _settingsStore.SaveAsync(_settings);
+                FrameworkStatusText.Text = "Steam verified and directory account connected.";
+            }
+            else
+            {
+                FrameworkStatusText.Text = "Steam verified. Set the directory HTTPS URL in Settings to connect your player account.";
+            }
         }
         catch (OperationCanceledException)
         {
-            FrameworkStatusText.Text = "Steam sign-in timed out or was cancelled.";
-            MessageBox.Show("Steam sign-in was cancelled or timed out. Please try again.", "Steam sign-in", MessageBoxButton.OK, MessageBoxImage.Information);
+            FrameworkStatusText.Text = "Steam or directory sign-in was cancelled or timed out.";
+            MessageBox.Show("Sign-in was cancelled or timed out. Please try again.", "Steam sign-in", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            FrameworkStatusText.Text = "Steam sign-in could not be completed.";
-            MessageBox.Show($"Could not verify your Steam account.\n\n{ex.Message}", "Steam sign-in failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            FrameworkStatusText.Text = "Account sign-in could not be completed.";
+            MessageBox.Show($"Could not complete account sign-in.\n\n{ex.Message}", "Sign-in failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
