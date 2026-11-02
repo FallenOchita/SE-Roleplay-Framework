@@ -8,13 +8,10 @@ public sealed class GameInstallDetector
 {
     private const string GameRelativePath = "steamapps/common/SpaceEngineers/Bin64/SpaceEngineers.exe";
     private static readonly Regex LibraryPathPattern = new(
-        "\\"path\\"\\s*\\"((?:\\\\\\\\.|[^\\"])*)\\"",
+        @"""path""\s*""([^""]+)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public string? FindGameExecutable()
-    {
-        return FindGameInstallations().FirstOrDefault();
-    }
+    public string? FindGameExecutable() => FindGameInstallations().FirstOrDefault();
 
     public IReadOnlyList<string> FindGameInstallations()
     {
@@ -34,9 +31,7 @@ public sealed class GameInstallDetector
                 var contents = File.ReadAllText(libraryFile);
                 foreach (Match match in LibraryPathPattern.Matches(contents))
                 {
-                    var libraryPath = match.Groups[1].Value
-                        .Replace(@"\\\\", @"\\", StringComparison.Ordinal)
-                        
+                    var libraryPath = match.Groups[1].Value.Replace(@"\\", @"\", StringComparison.Ordinal);
                     if (string.IsNullOrWhiteSpace(libraryPath))
                         continue;
 
@@ -54,10 +49,11 @@ public sealed class GameInstallDetector
         }
 
         return installations;
-        
+
         void AddCandidate(string candidate)
         {
-            if (!File.Exists(candidate) || !string.Equals(Path.GetFileName(candidate), "SpaceEngineers.exe", StringComparison.OrdinalIgnoreCase))
+            if (!File.Exists(candidate) ||
+                !string.Equals(Path.GetFileName(candidate), "SpaceEngineers.exe", StringComparison.OrdinalIgnoreCase))
                 return;
 
             var fullPath = Path.GetFullPath(candidate);
@@ -72,16 +68,17 @@ public sealed class GameInstallDetector
 
         foreach (var keyPath in new[]
         {
-            @"HKEY_CURRENT_USER\\Software\\Valve\\Steam",
-            @"HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam",
-            @"HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam"
+            @"HKEY_CURRENT_USER\Software\Valve\Steam",
+            @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
+            @"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam"
         })
         {
             foreach (var valueName in new[] { "SteamPath", "InstallPath" })
             {
                 try
                 {
-                    if (Registry.GetValue(keyPath, valueName, null) is string path && !string.IsNullOrWhiteSpace(path))
+                    if (Registry.GetValue(keyPath, valueName, null) is string path &&
+                        !string.IsNullOrWhiteSpace(path))
                         roots.Add(Environment.ExpandEnvironmentVariables(path));
                 }
                 catch (System.Security.SecurityException)
