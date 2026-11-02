@@ -36,7 +36,9 @@ namespace SE.Roleplay.Framework.Torch.Commands
             if (!IsValidPermission(permission)) { Respond("Enter a permission name such as rp.chat or admin.kick."); return; }
             try
             {
-                await RequireFramework().Profiles.GrantPermissionAsync(steamId, permission).ConfigureAwait(false);
+                var framework = RequireFramework();
+                await framework.Profiles.GrantPermissionAsync(steamId, permission).ConfigureAwait(false);
+                framework.Permissions.Grant(steamId, permission.Trim());
                 Respond("Granted '" + permission.Trim() + "' to " + steamId64 + ".");
             }
             catch (Exception exception) { Respond("Could not grant permission: " + exception.Message); }
@@ -50,7 +52,9 @@ namespace SE.Roleplay.Framework.Torch.Commands
             if (!IsValidPermission(permission)) { Respond("Enter a permission name such as rp.chat or admin.kick."); return; }
             try
             {
-                await RequireFramework().Profiles.RevokePermissionAsync(steamId, permission).ConfigureAwait(false);
+                var framework = RequireFramework();
+                await framework.Profiles.RevokePermissionAsync(steamId, permission).ConfigureAwait(false);
+                framework.Permissions.Revoke(steamId, permission.Trim());
                 Respond("Revoked '" + permission.Trim() + "' from " + steamId64 + ".");
             }
             catch (Exception exception) { Respond("Could not revoke permission: " + exception.Message); }
