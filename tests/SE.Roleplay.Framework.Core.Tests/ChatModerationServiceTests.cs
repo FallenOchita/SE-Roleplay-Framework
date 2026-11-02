@@ -1,5 +1,6 @@
 using System;
-using System.Threading.Tasks;\nusing System.Linq;
+using System.Threading.Tasks;
+using System.Linq;
 using SE.Roleplay.Framework.Core.Chat;
 using Xunit;
 
