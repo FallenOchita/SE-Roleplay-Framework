@@ -59,16 +59,14 @@ public partial class MainWindow : Window
                 try
                 {
                     var refresh = RefreshTokenProtector.Unprotect(_settings.ProtectedDirectoryRefreshToken);
-                    var pair = await _directoryAuthorization.RefreshAsync(_settings.ServerDirectoryUrl, refresh);
+                    var pair = await _directoryAuthorization.RefreshAsync(_settings.ServerDirectoryUrl, refresh, _settings.SteamId64);
                     _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
                     await _settingsStore.SaveAsync(_settings);
                     FrameworkStatusText.Text = "Directory account session restored.";
                 }
                 catch (Exception ex)
                 {
-                    _settings.ProtectedDirectoryRefreshToken = string.Empty;
-                    await _settingsStore.SaveAsync(_settings);
-                    FrameworkStatusText.Text = $"Directory session expired. Sign in again. ({ex.Message})";
+                    FrameworkStatusText.Text = $"Could not restore directory session; saved credentials were retained for retry. ({ex.Message})";
                 }
             }
 
@@ -155,7 +153,7 @@ public partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(directoryUrl))
             {
                 FrameworkStatusText.Text = "Complete the directory authorization in your browser...";
-                var pair = await _directoryAuthorization.AuthorizeAsync(directoryUrl);
+                var pair = await _directoryAuthorization.AuthorizeAsync(directoryUrl, steamId);
                 _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
                 await _settingsStore.SaveAsync(_settings);
                 FrameworkStatusText.Text = "Steam verified and directory account connected.";
