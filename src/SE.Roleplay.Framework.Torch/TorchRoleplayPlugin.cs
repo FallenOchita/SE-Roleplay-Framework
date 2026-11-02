@@ -367,9 +367,16 @@ namespace SE.Roleplay.Framework.Torch
                 if (pendingConnect != null)
                     await pendingConnect.ConfigureAwait(false);
 
-                await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
-                _context.Permissions.Clear(steamId);
-                _context.Logger.Info("Saved and unloaded profile and cleared runtime permissions for Steam account " + steamId + ".");
+                try
+                {
+                    await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
+                    _context.Logger.Info("Saved and unloaded profile for Steam account " + steamId + ".");
+                }
+                finally
+                {
+                    // Always clear transient grants, even if profile persistence reports an error.
+                    _context!.Permissions.Clear(steamId);
+                }
             }
             catch (Exception exception)
             {
