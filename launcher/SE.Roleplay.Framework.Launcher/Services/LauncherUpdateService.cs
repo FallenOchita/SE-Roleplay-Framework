@@ -31,8 +31,13 @@ public sealed class LauncherUpdateService
             if (root.TryGetProperty("prerelease", out var prerelease) && !prerelease.GetBoolean())
                 return false;
 
-            var latestCommit = root.TryGetProperty("target_commitish", out var target)
-                ? target.GetString() ?? string.Empty : string.Empty;
+            var manifestUrl = FindAssetUrl(assets, "launcher-update.json");
+            if (manifestUrl is null)
+                return false;
+
+            using var manifest = JsonDocument.Parse(await Client.GetStringAsync(manifestUrl));
+            var latestCommit = manifest.RootElement.TryGetProperty("commit", out var commit)
+                ? commit.GetString() ?? string.Empty : string.Empty;
             var installedCommit = GetInstalledCommit();
             if (string.IsNullOrWhiteSpace(latestCommit) ||
                 string.Equals(latestCommit, installedCommit, StringComparison.OrdinalIgnoreCase))
