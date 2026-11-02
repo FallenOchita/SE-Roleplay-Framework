@@ -17,6 +17,12 @@ The event bridge uses Torch's `IPlayer.SteamId` and `IPlayer.Name` properties. T
 
 The adapter references local Torch and game assemblies via `TorchLibPath` and `GameBinariesPath`. These assemblies are intentionally not committed. Build and smoke-test against the exact server installation before deployment.
 
+## Per-server character limits
+
+Each Torch instance enforces its own character limit for every Steam account. Set the optional process environment variable `SERPF_MAX_CHARACTERS_PER_PLAYER` before starting Torch to override the default of 5. Accepted values are integers from 1 through 50; missing or invalid values safely fall back to 5. The active limit is written to the Torch log at startup.
+
+Character data remains under that instance's `Storage/SE-Roleplay-Framework/Players` directory, so separate servers do not share character records or limits.
+
 ## Pre-admission allowlist enforcement
 
 When `SERPF_ADMISSION_ENFORCEMENT=true`, the Torch adapter registers a handler for Torch's dedicated-server `ValidateAuthTicketEvent`. This event occurs during the connection attempt, before the server accepts the player. The handler awaits Torch's existing authentication verdict first and only queries the directory when that verdict is successful.
