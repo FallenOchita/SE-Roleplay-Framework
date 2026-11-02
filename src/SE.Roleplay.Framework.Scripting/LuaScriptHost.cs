@@ -135,6 +135,65 @@ namespace SE.Roleplay.Framework.Scripting
             }
         }
 
+        /// <summary>
+        /// Runs trusted Lua chat moderation handlers before a host adapter delivers a player's message.
+        /// Returns false only when a handler explicitly returns false; handler errors are logged and fail open.
+        /// The Torch adapter must call this method from a verified pre-delivery chat hook.
+        /// </summary>
+        public bool EvaluateChatMessage(ulong platformId, string displayName, string channel, string message)
+        {
+            if (platformId == 0 || string.IsNullOrWhiteSpace(channel) ||
+                string.IsNullOrWhiteSpace(message) || message.Length > 280 || message.Any(char.IsControl))
+                return false;
+
+            var normalizedChannel = channel.Trim().ToLowerInvariant();
+            if (normalizedChannel != "global" && normalizedChannel != "local" && normalizedChannel != "faction")
+                return false;
+
+            LoadedModule[] modules;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                modules = _modules.Values.ToArray();
+            }
+
+            foreach (var module in modules)
+            {
+                DynValue[] handlers;
+                lock (module.Sync)
+                {
+                    if (module.IsDisposed || !module.EventHandlers.TryGetValue("chatMessage", out var registered))
+                        continue;
+                    handlers = registered.ToArray();
+                }
+
+                foreach (var handler in handlers)
+                {
+                    lock (module.Sync)
+                    {
+                        if (module.IsDisposed) continue;
+                        try
+                        {
+                            module.Budget.Reset();
+                            var player = new Table(module.Script);
+                            player["platformId"] = platformId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                            player["name"] = displayName ?? string.Empty;
+                            var result = module.Script.Call(handler, DynValue.NewTable(player),
+                                DynValue.NewString(message), DynValue.NewString(normalizedChannel));
+                            if (result.Type == DataType.Boolean && !result.Boolean)
+                                return false;
+                        }
+                        catch (Exception exception)
+                        {
+                            _logger("Lua chatMessage handler in " + module.Name + " failed; allowing original message: " + exception.Message);
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+
         public void PublishPlayerJoined(ulong platformId, string displayName) =>
             PublishPlayerEvent("playerJoined", platformId, displayName);
 
@@ -271,12 +330,12 @@ namespace SE.Roleplay.Framework.Scripting
                 var supportedEvents = new[]
                 {
                     "playerJoined", "playerLeft", "characterCreated", "characterSelected",
-                    "characterUpdated", "characterDeleted"
+                    "characterUpdated", "characterDeleted", "chatMessage"
                 };
                 var normalizedEvent = supportedEvents.FirstOrDefault(value =>
                     string.Equals(value, eventName, StringComparison.OrdinalIgnoreCase));
                 if (normalizedEvent == null)
-                    throw new ScriptRuntimeException("Supported events are playerJoined, playerLeft, characterCreated, characterSelected, characterUpdated, and characterDeleted.");
+                    throw new ScriptRuntimeException("Supported events are playerJoined, playerLeft, characterCreated, characterSelected, characterUpdated, characterDeleted, and chatMessage.");
                 if (handler == null || handler.Type != DataType.Function)
                     throw new ScriptRuntimeException("The event handler must be a function.");
                 var key = normalizedEvent;
