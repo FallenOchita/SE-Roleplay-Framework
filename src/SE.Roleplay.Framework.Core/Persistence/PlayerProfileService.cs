@@ -55,7 +55,7 @@ namespace SE.Roleplay.Framework.Core.Persistence
                 record.LastKnownName = displayName.Trim();
                 record.Characters = record.Characters ?? new List<PlayerCharacter>();
                 record.Metadata = record.Metadata ?? new Dictionary<string, string>();
-                record.Permissions = record.Permissions ?? new List<string>();
+                record.Permissions = NormalizePermissions(record.Permissions);
                 NormalizeCharacters(record);
                 if (record.SelectedCharacterId.HasValue &&
                     !record.Characters.Any(c => c.CharacterId == record.SelectedCharacterId.Value))
@@ -138,6 +138,51 @@ namespace SE.Roleplay.Framework.Core.Persistence
             finally { gate.Release(); }
         }
 
+        public async Task<IReadOnlyCollection<string>> GetPermissionsAsync(ulong platformId, CancellationToken cancellationToken = default)
+        {
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try { return GetLoadedProfile(platformId).Permissions.ToArray(); }
+            finally { gate.Release(); }
+        }
+
+        public async Task<bool> HasPermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default)
+        {
+            ValidatePermission(permission);
+            var permissions = await GetPermissionsAsync(platformId, cancellationToken).ConfigureAwait(false);
+            return permissions.Contains(permission, StringComparer.OrdinalIgnoreCase) || permissions.Contains("*", StringComparer.OrdinalIgnoreCase);
+        }
+
+        public async Task GrantPermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default)
+        {
+            ValidatePermission(permission);
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var record = GetLoadedProfile(platformId);
+                if (!record.Permissions.Contains(permission.Trim(), StringComparer.OrdinalIgnoreCase))
+                {
+                    record.Permissions.Add(permission.Trim());
+                    await SaveRecordAsync(record, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally { gate.Release(); }
+        }
+
+        public async Task RevokePermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default)
+        {
+            ValidatePermission(permission);
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var record = GetLoadedProfile(platformId);
+                record.Permissions.RemoveAll(value => string.Equals(value, permission.Trim(), StringComparison.OrdinalIgnoreCase));
+                await SaveRecordAsync(record, cancellationToken).ConfigureAwait(false);
+            }
+            finally { gate.Release(); }
+        }
         public async Task SaveAsync(ulong platformId, CancellationToken cancellationToken = default)
         {
             var gate = GetLock(platformId);
@@ -190,6 +235,14 @@ namespace SE.Roleplay.Framework.Core.Persistence
                 identity.SelectCharacter(characterId);
         }
 
+        private static List<string> NormalizePermissions(IEnumerable<string> permissions) =>
+            (permissions ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        private static void ValidatePermission(string permission)
+        {
+            if (string.IsNullOrWhiteSpace(permission)) throw new ArgumentException("Permission is required.", nameof(permission));
+        }
         private static void NormalizeCharacters(PlayerRecord record)
         {
             var ids = new HashSet<Guid>();

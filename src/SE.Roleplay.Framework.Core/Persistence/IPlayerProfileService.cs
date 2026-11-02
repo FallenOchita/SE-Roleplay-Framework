@@ -13,6 +13,10 @@ namespace SE.Roleplay.Framework.Core.Persistence
         Task SelectCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
         Task DeleteCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
         Task<IReadOnlyCollection<PlayerCharacter>> GetCharactersAsync(ulong platformId, CancellationToken cancellationToken = default);
+        Task<IReadOnlyCollection<string>> GetPermissionsAsync(ulong platformId, CancellationToken cancellationToken = default);
+        Task<bool> HasPermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default);
+        Task GrantPermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default);
+        Task RevokePermissionAsync(ulong platformId, string permission, CancellationToken cancellationToken = default);
         Task SaveAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task UnloadAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task SaveAllAsync(CancellationToken cancellationToken = default);
