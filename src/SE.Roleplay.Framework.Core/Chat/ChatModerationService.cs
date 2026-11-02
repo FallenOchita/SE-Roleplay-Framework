@@ -27,7 +27,11 @@ namespace SE.Roleplay.Framework.Core.Chat
         {
             var normalized = NormalizePhrase(phrase);
             lock (_sync)
+            {
+                if (_blockedPhrases.Count >= 500 && !_blockedPhrases.Contains(normalized))
+                    throw new InvalidOperationException("No more than 500 blocked phrases may be configured.");
                 return _blockedPhrases.Add(normalized);
+            }
         }
 
         public bool RemoveBlockedPhrase(string phrase)
