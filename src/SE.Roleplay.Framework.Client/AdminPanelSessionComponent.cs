@@ -99,7 +99,11 @@ namespace SE.Roleplay.Framework.Client
                 if (response.ProtocolVersion != AdminPanelMessage.CurrentProtocolVersion)
                     return;
 
-                UI.AdminPanelScreen.ApplyResponse(response);
+                // Secure-message callbacks are not guaranteed to run on the GUI thread.
+                // Marshal all control updates through the SE1 game-thread dispatcher.
+                var utilities = MyAPIGateway.Utilities;
+                if (utilities != null)
+                    utilities.InvokeOnGameThread(() => UI.AdminPanelScreen.ApplyResponse(response));
             }
             catch (Exception)
             {
