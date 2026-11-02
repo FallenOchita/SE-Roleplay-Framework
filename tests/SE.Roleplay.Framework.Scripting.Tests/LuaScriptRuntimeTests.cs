@@ -1,4 +1,5 @@
 using SE.Roleplay.Framework.Scripting;
+using Xunit;
 
 namespace SE.Roleplay.Framework.Scripting.Tests;
 
