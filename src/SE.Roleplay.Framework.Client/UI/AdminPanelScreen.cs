@@ -112,7 +112,7 @@ namespace SE.Roleplay.Framework.Client.UI
         internal static void ApplyResponse(AdminPanelMessage response)
         {
             var screen = _active;
-            if (screen == null || screen.IsClosed)
+            if (screen == null)
                 return;
 
             screen._allowlistEnabled = response.AllowlistEnabled;
@@ -124,7 +124,7 @@ namespace SE.Roleplay.Framework.Client.UI
             {
                 var visibleMembers = response.Members.Take(40).ToArray();
                 screen._members.Text = "Enforcement: " + (response.AllowlistEnabled ? "ENABLED" : "DISABLED") +
-                    "\nMembers (" + response.Members.Length + "):\n" +
+                    "\nMembers (" + response.MemberCount + " total; showing " + visibleMembers.Length + "):\n" +
                     string.Join("\n", visibleMembers) +
                     (response.Members.Length > visibleMembers.Length ? "\n...more members omitted" : string.Empty);
             }
