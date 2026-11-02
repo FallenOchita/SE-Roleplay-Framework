@@ -7,7 +7,7 @@ The framework uses C# for trusted server/game integration and embeds Lua for com
 - MoonSharp executes each chunk in a fresh `Preset_SoftSandbox` environment.
 - Source length is limited to 64 KiB by default (configurable per runtime).
 - The runtime exposes no host objects unless the host explicitly supplies a `LuaScriptContext`.
-- The optional `rp` table currently contains only `rp.serverName` (read-only display name) and `rp.log(message)` (host logging callback, capped at 2,048 characters).
+- The optional `rp` table currently contains only `rp.serverName` (the server display name supplied by the host) and `rp.log(message)` (host logging callback, capped at 2,048 characters).
 - No filesystem, process, network, reflection, Torch, or arbitrary .NET objects are exposed.
 
 Example: `rp.log("Welcome script loaded on " .. rp.serverName)`
