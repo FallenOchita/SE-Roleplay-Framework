@@ -2,20 +2,18 @@
 
 The framework uses C# for trusted server/game integration and embeds Lua for community gameplay extensions.
 
-## Current runtime
+## Runtime and host API
 
-- MoonSharp executes Lua in a fresh Preset_SoftSandbox environment for each chunk.
-- Each execution has a configurable source-size limit (64 KiB by default).
-- Scripts receive no framework, filesystem, process, network, or Torch objects by default.
-- Lua failures are returned as structured results so a host can log them without crashing its server loop.
+- MoonSharp executes each chunk in a fresh `Preset_SoftSandbox` environment.
+- Source length is limited to 64 KiB by default (configurable per runtime).
+- The runtime exposes no host objects unless the host explicitly supplies a `LuaScriptContext`.
+- The optional `rp` table currently contains only `rp.serverName` (the server display name supplied by the host) and `rp.log(message)` (host logging callback, capped at 2,048 characters).
+- No filesystem, process, network, reflection, Torch, or arbitrary .NET objects are exposed.
 
-## Planned framework API
+Example: `rp.log("Welcome script loaded on " .. rp.serverName)`
 
-The next integration layer will expose a small allowlisted Lua API for registering roleplay commands, subscribing to framework events, and reading/writing player data through permission-checked C# services. Scripts will never receive direct access to Torch internals or unrestricted .NET objects.
+The host must create a context with a trusted server name and logger callback. Do not pass callbacks that perform privileged operations without authorization.
 
-## Example
+## Current scope
 
-    local message = "Welcome to the community!"
-    return message
-
-This runtime foundation does not yet load scripts automatically from a server folder or register game events; those capabilities will be added through the Torch host adapter after API permissions and lifecycle behavior are covered by tests.
+This is a host API foundation. It does not yet load scripts automatically from a server folder, register RP commands, or subscribe to Torch events. Those capabilities will be added through explicit, permission-checked interfaces and lifecycle tests. The sandbox preset and input limits are defense-in-depth, not a complete security boundary against hostile scripts; production hosting still needs execution budgets and operational isolation.
