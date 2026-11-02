@@ -119,5 +119,5 @@ The hosted CI validates the host-neutral core/tests and directory API. It cannot
 - The JSON directory store uses a process-local lock and atomic file replacement. Run one service instance per data file; use a shared transactional database before horizontal scaling.
 - Steam login state, Steam OpenID nonce replay protection, desktop OAuth authorization state/codes, and launcher token families are persisted in shared SQLite with atomic consume/rotation operations. The server directory JSON store still uses process-local locking and file replacement, so the complete directory service is not yet ready for multi-instance deployment.
 - Torch player counts are based on join/leave events observed after the plugin attaches. If the plugin loads while players are already connected, the initial count can be temporarily low until those players reconnect.
-- Permission grants are not yet restored from player profiles; permission persistence remains a follow-up.
+- Player profile permission grants are persisted with the profile and restored on load. Permission changes must go through `IPlayerProfileService` so they are saved; the standalone in-memory `IPermissionService` remains a separate runtime permission cache.
 - Do not copy proprietary game or Torch assemblies into this repository.
