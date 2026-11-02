@@ -51,6 +51,49 @@ public sealed class LauncherDirectoryApiClient(DesktopAuthorizationService autho
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<IReadOnlyList<ServerMemberDto>> GetServerMembersAsync(string directoryUrl, string serverId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await SendAsync<ServerMembersResponse>(HttpMethod.Get, directoryUrl,
+            $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/members", null, cancellationToken);
+        return result?.Members ?? Array.Empty<ServerMemberDto>();
+    }
+
+    public async Task AddServerMemberAsync(string directoryUrl, string serverId, string steamId64, string note,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendRawAsync(HttpMethod.Post, directoryUrl,
+            $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/members",
+            new AddServerMemberRequestDto(steamId64, note), cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RemoveServerMemberAsync(string directoryUrl, string serverId, string steamId64,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendRawAsync(HttpMethod.Delete, directoryUrl,
+            $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/members/{Uri.EscapeDataString(steamId64)}",
+            null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> GetAllowlistEnabledAsync(string directoryUrl, string serverId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await SendAsync<ServerAdmissionSettingsDto>(HttpMethod.Get, directoryUrl,
+            $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/admission", null, cancellationToken);
+        return result?.AllowlistEnabled ?? false;
+    }
+
+    public async Task SetAllowlistEnabledAsync(string directoryUrl, string serverId, bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendRawAsync(HttpMethod.Put, directoryUrl,
+            $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/admission",
+            new UpdateServerAdmissionSettingsDto(enabled), cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task<T?> SendAsync<T>(HttpMethod method, string directoryUrl, string path, object? body,
         CancellationToken cancellationToken)
     {
@@ -93,3 +136,9 @@ public sealed record RotatedServerKeyDto(string ApiKey, string Message);
 public sealed record RegisterOwnedServerDto(
     string Name, string Description, string Address, int Port, int MaxPlayers,
     string Region, string WebsiteUrl, string DiscordUrl, string RulesUrl, List<string> Tags);
+
+public sealed record ServerMembersResponse(List<ServerMemberDto> Members);
+public sealed record ServerMemberDto(string ServerId, string SteamId64, string AddedBySteamId64, DateTime AddedAtUtc, string Note);
+public sealed record AddServerMemberRequestDto(string SteamId64, string Note);
+public sealed record ServerAdmissionSettingsDto(string ServerId, bool AllowlistEnabled);
+public sealed record UpdateServerAdmissionSettingsDto(bool AllowlistEnabled);
