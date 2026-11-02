@@ -57,12 +57,13 @@ namespace SE.Roleplay.Framework.Torch
             if (server == null)
                 throw new InvalidOperationException("SE Roleplay Framework requires a Torch dedicated server host.");
 
+            var maximumCharacters = ReadMaximumCharactersPerPlayer(out var invalidCharacterLimit);
             var options = new FrameworkOptions
             {
                 ServerName = "Space Engineers Roleplay",
                 DataDirectory = Path.Combine(server.InstancePath, "Storage", "SE-Roleplay-Framework"),
                 AutosaveIntervalSeconds = 300,
-                MaximumCharactersPerPlayer = 5
+                MaximumCharactersPerPlayer = maximumCharacters
             };
 
             var identities = new PlayerIdentityService();
@@ -81,6 +82,9 @@ namespace SE.Roleplay.Framework.Torch
                 store,
                 options,
                 new TorchFrameworkLogger());
+            if (invalidCharacterLimit)
+                _context.Logger.Warn("SERPF_MAX_CHARACTERS_PER_PLAYER must be an integer from 1 to 50. Using the default limit of 5.");
+            _context.Logger.Info("Maximum characters per player: " + options.MaximumCharactersPerPlayer + ".");
             CharacterCommandModule.Framework = _context;
             PlayerPermissionCommandModule.Framework = _context;
 
@@ -193,6 +197,24 @@ namespace SE.Roleplay.Framework.Torch
                 TaskScheduler.Default);
         }
 
+
+        private static int ReadMaximumCharactersPerPlayer(out bool invalidValue)
+        {
+            const int defaultLimit = 5;
+            const int maximumLimit = 50;
+            var configuredValue = Environment.GetEnvironmentVariable("SERPF_MAX_CHARACTERS_PER_PLAYER");
+            invalidValue = false;
+
+            if (string.IsNullOrWhiteSpace(configuredValue))
+                return defaultLimit;
+
+            if (int.TryParse(configuredValue, out var parsedLimit) &&
+                parsedLimit >= 1 && parsedLimit <= maximumLimit)
+                return parsedLimit;
+
+            invalidValue = true;
+            return defaultLimit;
+        }
 
         private void ConfigureDirectoryHeartbeat()
         {
