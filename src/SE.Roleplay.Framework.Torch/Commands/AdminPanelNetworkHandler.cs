@@ -133,22 +133,30 @@ namespace SE.Roleplay.Framework.Torch.Commands
         {
             try
             {
-                var multiplayer = MyAPIGateway.Multiplayer;
-                if (multiplayer == null || !multiplayer.IsServer)
+                var payload = response.Serialize();
+                // SE1 secure multiplayer messages have a 4 KiB packet ceiling.
+                if (payload.Length > 4000)
                     return;
 
-                var payload = response.Serialize();
-                // MyAPIGateway multiplayer calls must be made on the SE1 game thread.
-                // The directory request completes on a worker thread, so marshal the send.
-                if (payload.Length <= 4000)
+                // Directory requests complete on a worker thread. Only obtain and use
+                // the multiplayer API inside the SE1 game-thread callback.
+                var utilities = MyAPIGateway.Utilities;
+                if (utilities == null)
+                    return;
+
+                utilities.InvokeOnGameThread(() =>
                 {
-                    MyAPIGateway.Utilities?.InvokeOnGameThread(() =>
+                    try
                     {
                         var gameMultiplayer = MyAPIGateway.Multiplayer;
                         if (gameMultiplayer != null && gameMultiplayer.IsServer)
                             gameMultiplayer.SendMessageTo(NetworkChannel, payload, recipient, true);
-                    });
-                }
+                    }
+                    catch
+                    {
+                        // The recipient may disconnect while the response is queued.
+                    }
+                });
             }
             catch
             {
