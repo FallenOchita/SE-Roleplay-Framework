@@ -175,3 +175,10 @@ dotnet build src/SE.Roleplay.Framework.Client/SE.Roleplay.Framework.Client.cspro
 Package the resulting client assembly under the mod's `Data/Scripts/SE.Roleplay.Framework.Client/` directory. Install the matching mod on the server and all clients. The channel ID and protocol version must match between client and Torch adapter.
 
 **Validation status:** the secure-message API and session lifecycle are wired in source, but this initial implementation has not yet been built against the target installed SE1/Torch assemblies or tested on a staging server. The client mod packaging, GUI behavior, and server message round-trip must be verified before release. Torch console commands remain available as a fallback.
+
+
+## Lua startup scripts
+
+The Torch adapter can load trusted Lua startup scripts from `Storage/SE-Roleplay-Framework/Scripts` inside the Torch instance. Script loading is **disabled by default**; set `SERPF_ENABLE_LUA_SCRIPTS=true` in the server process environment to opt in. On plugin initialization it scans only the top-level `*.lua` files, in filename order, with a maximum of 50 files and 64 KiB per file. Scripts run in the MoonSharp restricted sandbox and receive only `rp.serverName` and `rp.log(message)` through the explicit host context. Script output and failures are written to the Torch log.
+
+Only install scripts from sources you trust. The current runtime does not yet enforce a per-script instruction/time budget or provide automatic gameplay event/command hooks; a non-terminating script can consume a worker thread. Keep this feature disabled for untrusted community uploads until execution budgeting and server-side script permissions are implemented.
