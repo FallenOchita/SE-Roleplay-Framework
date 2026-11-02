@@ -35,6 +35,12 @@ jobs:
       - name: Build shared core
         run: dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
 
+      - name: Build Lua scripting runtime
+        run: dotnet build src/SE.Roleplay.Framework.Scripting/SE.Roleplay.Framework.Scripting.csproj --configuration Release
+
+      - name: Run Lua scripting tests
+        run: dotnet test tests/SE.Roleplay.Framework.Scripting.Tests/SE.Roleplay.Framework.Scripting.Tests.csproj --configuration Release --logger "console;verbosity=normal"
+
       - name: Run core tests
         run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --logger "console;verbosity=normal"
 
@@ -47,6 +53,14 @@ jobs:
           $missing = $required | Where-Object { $_ -notin $references }
           if ($missing) {
             throw "Torch adapter project is missing expected assembly references: $($missing -join ', ')"
+          }
+          $projectReferences = @($project.Project.ItemGroup.ProjectReference.Include)
+          if ("..\SE.Roleplay.Framework.Scripting\SE.Roleplay.Framework.Scripting.csproj" -notin $projectReferences) {
+            throw "Torch adapter is not referencing the Lua scripting runtime."
+          }
+          $plugin = Get-Content "src/SE.Roleplay.Framework.Torch/TorchRoleplayPlugin.cs" -Raw
+          if ($plugin -notmatch "ConfigureLuaScripts" -or $plugin -notmatch "SERPF_ENABLE_LUA_SCRIPTS") {
+            throw "Torch adapter is missing opt-in Lua startup script loading."
           }
           $handler = Get-Content "src/SE.Roleplay.Framework.Torch/Commands/AdminPanelNetworkHandler.cs" -Raw
           if ($handler -notmatch "InvokeOnGameThread") {
