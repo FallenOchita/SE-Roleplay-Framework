@@ -134,8 +134,11 @@ namespace SE.Roleplay.Framework.Scripting
         public void PublishPlayerJoined(ulong platformId, string displayName) =>
             PublishPlayerEvent("playerJoined", platformId, displayName);
 
-        public void PublishPlayerLeft(ulong platformId, string displayName) =>
+        public void PublishPlayerLeft(ulong platformId, string displayName)
+        {
+            _lastChatBroadcastUtcTicks.TryRemove(platformId, out _);
             PublishPlayerEvent("playerLeft", platformId, displayName);
+        }
 
         public void PublishCharacterCreated(ulong platformId, string displayName, Guid characterId, string name, string description) =>
             PublishCharacterEvent("characterCreated", platformId, displayName, characterId, name, description);
