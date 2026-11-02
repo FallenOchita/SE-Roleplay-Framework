@@ -55,9 +55,10 @@ public sealed class LuaScriptHostTests
     }
 
     [Fact]
-    public void LuaChatBroadcast_CannotBeUsedToSpoofAnotherPlayer()
+    public void LuaChatBroadcast_UsesInvokingPlayersPermissionContext()
     {
-        const ulong playerId = 76561198000000001UL;
+        const ulong authorizedPlayerId = 76561198000000001UL;
+        const ulong otherPlayerId = 76561198000000002UL;
         var permissions = new PermissionService();
         var broadcasts = new List<string>();
         using var host = new LuaScriptHost(permissions, (_, _) => { }, _ => { },
@@ -68,10 +69,14 @@ public sealed class LuaScriptHostTests
             "Test Server");
 
         Assert.True(loaded.Succeeded, loaded.Error);
-        permissions.Grant(playerId, "rp.announce");
-        permissions.Grant(playerId, "rp.chat.broadcast");
-        Assert.True(host.DispatchCommand(playerId, "Alex", "announce", new[] { "valid" }));
-        Assert.Single(broadcasts);
+        permissions.Grant(authorizedPlayerId, "rp.announce");
+        permissions.Grant(authorizedPlayerId, "rp.chat.broadcast");
+        permissions.Grant(otherPlayerId, "rp.announce");
+
+        Assert.True(host.DispatchCommand(otherPlayerId, "Jordan", "announce", new[] { "not authorized" }));
+        Assert.Empty(broadcasts);
+        Assert.True(host.DispatchCommand(authorizedPlayerId, "Alex", "announce", new[] { "authorized" }));
+        Assert.Equal(new[] { "authorized" }, broadcasts);
     }
 
     [Fact]
