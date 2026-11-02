@@ -41,6 +41,48 @@ Players can manage their own characters through the server chat:
 
 Character positions are based on the current list order. Players can only operate on the profile associated with their own Steam account. The profile service enforces the server-configured five-character limit. Commands are registered through Torch's `CommandManager` when the plugin is loaded into a session.
 
+## Lua RP scripting
+
+Lua loading remains disabled by default. To enable trusted administrator-installed scripts, set:
+
+```
+SERPF_ENABLE_LUA_SCRIPTS=true
+```
+
+Place top-level `.lua` files in:
+
+```
+<Torch instance>/Storage/SE-Roleplay-Framework/Scripts/
+```
+
+The loader accepts up to 50 files, each no larger than 64 KiB. Each module has a fresh `Preset_SoftSandbox` environment and a 100,000 VM-instruction budget per load, command, and player-event callback. The host does not expose filesystem, process, network, reflection, Torch, or arbitrary .NET APIs.
+
+### Lua host API
+
+- `rp.serverName` — server display name.
+- `rp.log(message)` — writes a server log entry (message capped at 2,048 characters).
+- `rp.registerCommand(name, permission, function(player, args) ... end)` — registers a player command. The required permission is checked by C# before Lua runs.
+- `rp.on("playerJoined", function(player) ... end)` — player connected after profile load.
+- `rp.on("playerLeft", function(player) ... end)` — player disconnected.
+
+The player table contains `platformId` and `name`; command arguments are a 1-based Lua array. A module may register up to 20 handlers for each supported player event. Command names are unique across loaded modules.
+
+Example:
+
+```lua
+rp.registerCommand("greet", "rp.greet", function(player, args)
+    return "Welcome, " .. player.name .. "!"
+end)
+
+rp.on("playerJoined", function(player)
+    rp.log(player.name .. " joined the server")
+end)
+```
+
+Players with the `rp.greet` permission can invoke it with `!rp script run greet`. Administrators can grant that permission using `!rp admin permissions grant <SteamID64> rp.greet`. The Torch command adapter sends the Lua return value to the invoking player.
+
+Execution budgets count Lua VM instructions, not time spent in host callbacks. Keep callbacks short. This is defense-in-depth, not a complete hostile-code sandbox; enable loading only for trusted scripts and use operational isolation for public servers.
+
 ## Persistent player permissions
 
 Server administrators can manage saved profile permissions with the `!rp admin permissions` command category:
