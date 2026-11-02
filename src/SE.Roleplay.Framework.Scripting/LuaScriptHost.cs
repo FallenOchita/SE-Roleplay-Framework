@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MoonSharp.Interpreter;
+using MoonSharp.Interpreter.Debugging;
 using SE.Roleplay.Framework.Core.Permissions;
 
 namespace SE.Roleplay.Framework.Scripting
