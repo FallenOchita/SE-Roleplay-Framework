@@ -21,18 +21,22 @@ namespace SE.Roleplay.Framework.Scripting
         private readonly Action<ulong, string> _reply;
         private readonly Action<string> _logger;
         private readonly Func<string, bool>? _broadcastChat;
+        private readonly Func<ulong, string, string, bool>? _sendChatChannel;
         private readonly ConcurrentDictionary<ulong, long> _lastChatBroadcastUtcTicks = new ConcurrentDictionary<ulong, long>();
+        private readonly ConcurrentDictionary<string, long> _lastChannelMessageUtcTicks = new ConcurrentDictionary<string, long>(StringComparer.Ordinal);
         private readonly int _maximumInstructions;
         private bool _disposed;
 
         public LuaScriptHost(IPermissionService permissions, Action<ulong, string> reply, Action<string> logger,
             int maximumInstructions = LuaScriptRuntime.DefaultMaximumInstructionCount,
-            Func<string, bool>? broadcastChat = null)
+            Func<string, bool>? broadcastChat = null,
+            Func<ulong, string, string, bool>? sendChatChannel = null)
         {
             _permissions = permissions ?? throw new ArgumentNullException(nameof(permissions));
             _reply = reply ?? throw new ArgumentNullException(nameof(reply));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _broadcastChat = broadcastChat;
+            _sendChatChannel = sendChatChannel;
             if (maximumInstructions < 1) throw new ArgumentOutOfRangeException(nameof(maximumInstructions));
             _maximumInstructions = maximumInstructions;
         }
@@ -137,6 +141,8 @@ namespace SE.Roleplay.Framework.Scripting
         public void PublishPlayerLeft(ulong platformId, string displayName)
         {
             _lastChatBroadcastUtcTicks.TryRemove(platformId, out _);
+            foreach (var key in _lastChannelMessageUtcTicks.Keys.Where(key => key.StartsWith(platformId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":", StringComparison.Ordinal)).ToArray())
+                _lastChannelMessageUtcTicks.TryRemove(key, out _);
             PublishPlayerEvent("playerLeft", platformId, displayName);
         }
 
@@ -292,6 +298,7 @@ namespace SE.Roleplay.Framework.Scripting
             // This capability closes over the trusted platform ID. Lua cannot spoof another player's identity.
             var chat = new Table(script);
             chat["broadcast"] = (Func<string, bool>)(message => TryBroadcastChat(platformId, message));
+            chat["send"] = (Func<string, string, bool>)((channel, message) => TrySendChatChannel(platformId, channel, message));
             player["chat"] = chat;
             return player;
         }
@@ -336,6 +343,60 @@ namespace SE.Roleplay.Framework.Scripting
             catch (Exception exception)
             {
                 _logger("Lua RP chat broadcast failed: " + exception.Message);
+                return false;
+            }
+        }
+
+        private bool TrySendChatChannel(ulong platformId, string channel, string message)
+        {
+            if (platformId == 0 || _sendChatChannel == null || string.IsNullOrWhiteSpace(channel))
+                return false;
+
+            var normalizedChannel = channel.Trim().ToLowerInvariant();
+            string permission;
+            switch (normalizedChannel)
+            {
+                case "global": permission = "rp.chat.global"; break;
+                case "faction": permission = "rp.chat.faction"; break;
+                case "local": permission = "rp.chat.local"; break;
+                default: return false;
+            }
+
+            if (!_permissions.HasPermission(platformId, permission))
+                return false;
+            if (string.IsNullOrWhiteSpace(message) || message.Length > 280 || message.Any(char.IsControl))
+                return false;
+
+            var safeMessage = message.Trim();
+            if (safeMessage.Length == 0 || safeMessage.Length > 280)
+                return false;
+
+            var key = platformId.ToString(System.Globalization.CultureInfo.InvariantCulture) + ":" + normalizedChannel;
+            const long minimumIntervalTicks = TimeSpan.TicksPerSecond * 3;
+            while (true)
+            {
+                var now = DateTime.UtcNow.Ticks;
+                if (_lastChannelMessageUtcTicks.TryGetValue(key, out var previous))
+                {
+                    if (now - previous < minimumIntervalTicks)
+                        return false;
+                    if (!_lastChannelMessageUtcTicks.TryUpdate(key, now, previous))
+                        continue;
+                }
+                else if (!_lastChannelMessageUtcTicks.TryAdd(key, now))
+                {
+                    continue;
+                }
+                break;
+            }
+
+            try
+            {
+                return _sendChatChannel(platformId, normalizedChannel, safeMessage);
+            }
+            catch (Exception exception)
+            {
+                _logger("Lua RP " + normalizedChannel + " chat delivery failed: " + exception.Message);
                 return false;
             }
         }
