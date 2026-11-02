@@ -224,3 +224,10 @@ Package the resulting client assembly under the mod's `Data/Scripts/SE.Roleplay.
 The Torch adapter can load trusted Lua startup scripts from `Storage/SE-Roleplay-Framework/Scripts` inside the Torch instance. Script loading is **disabled by default**; set `SERPF_ENABLE_LUA_SCRIPTS=true` in the server process environment to opt in. On plugin initialization it scans only the top-level `*.lua` files, in filename order, with a maximum of 50 files and 64 KiB per file. Scripts run in the MoonSharp restricted sandbox and receive only `rp.serverName` and `rp.log(message)` through the explicit host context. Script output and failures are written to the Torch log.
 
 Only install scripts from sources you trust. The current runtime does not yet enforce a per-script instruction/time budget or provide automatic gameplay event/command hooks; a non-terminating script can consume a worker thread. Keep this feature disabled for untrusted community uploads until execution budgeting and server-side script permissions are implemented.
+
+
+## Lua chat moderation hook (host API only)
+
+The scripting runtime now supports `rp.on("chatMessage", function(player, message, channel) ... end)`. A handler may return `false` to reject a message; `nil` or `true` allows it. Handlers cannot rewrite text or choose recipients. The C# host exposes `EvaluateChatMessage` for invocation before delivery, validates the trusted sender and channel, and enforces the Lua instruction budget.
+
+**Important:** the current Torch adapter does not yet connect this API to the native Space Engineers player-chat interception pipeline. Native chat moderation is therefore not active yet. A follow-up Torch-specific integration must verify a supported pre-delivery event in the exact installed Torch/SE1 assemblies before this can be enabled.
