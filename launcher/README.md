@@ -5,7 +5,9 @@ Windows WPF launcher for the Space Engineers 1 Roleplay Framework. The launcher 
 ## Current features
 
 - Windows 10/11 x64 desktop application.
-- Starts Space Engineers through Steam (App ID `244850`).
+- Opens directly into the RP server browser; players see communities before Space Engineers starts.
+- Selecting **Connect** hands the selected server endpoint to Steam with `steam://connect/<address>:<port>`. Steam starts Space Engineers if it is not already running and requests the server connection; the launcher does not open the vanilla game menu first.
+- Keeps the RP launcher as the place to browse, search, favorite, and revisit communities. Space Engineers is launched only when a player connects to a server.
 - Automatically detects Space Engineers installations in the default Steam folder and additional Steam libraries listed in `libraryfolders.vdf`; saves the detected executable path and reports the installation in the launcher status.
 - Settings includes a manual re-detection action and handles multiple detected installations without silently overwriting the saved path.
 - Steam OpenID sign-in through the system browser; the launcher does not collect Steam passwords.
@@ -16,6 +18,16 @@ Windows WPF launcher for the Space Engineers 1 Roleplay Framework. The launcher 
 - Server-owner tools for registering, editing/managing owned listings, rotating server API keys, and managing per-server allowlist membership and policy.
 - Protected refresh-token storage using Windows Data Protection APIs.
 - Startup self-update checks against the rolling GitHub development release; downloaded installers are SHA-256 verified before launch.
+
+## FiveM-style player flow
+
+1. Start the SE1 RP Launcher. Its first screen is the community server browser.
+2. Browse, search, filter, and inspect a server listing.
+3. Click **Join** to hand the selected address and game port to Steam.
+4. Steam launches Space Engineers and requests a direct connection to that endpoint.
+5. The player returns to the launcher whenever they want to browse another community.
+
+This is a launcher-led server discovery and connection flow. It does not replace Space Engineers' rendering or multiplayer runtime; the game itself still handles gameplay and the actual network session. The Steam `steam://connect/` protocol is the connection handoff used for Space Engineers servers.
 
 ## Requirements
 

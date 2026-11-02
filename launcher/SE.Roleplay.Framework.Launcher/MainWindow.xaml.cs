@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
-        ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
+        ShowPage(ServersPage, "SE1 ROLEPLAY NETWORK", "Browse Servers", ServersNav);
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -150,7 +150,7 @@ public partial class MainWindow : Window
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) =>
-        ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
+        ShowPage(HomePage, "FEATURED COMMUNITIES", "Featured", HomeNav);
 
     private void ServersNav_Click(object sender, RoutedEventArgs e) =>
         ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
@@ -725,7 +725,7 @@ public partial class MainWindow : Window
             foreach (var recent in _settings.RecentlyLaunchedServers) _recentServers.Add(recent);
             UpdateHomeEmptyStates();
             await _settingsStore.SaveAsync(_settings);
-            FrameworkStatusText.Text = $"Sent join request for {server.Name} to Steam.";
+            FrameworkStatusText.Text = $"Connecting to {server.Name}. Steam is starting Space Engineers and handing off the server connection.";
         }
         catch (Exception ex)
         {
