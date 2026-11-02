@@ -1,5 +1,6 @@
 using System;
 using Sandbox.ModAPI;
+using Sandbox.Graphics.GUI;
 using SE.Roleplay.Framework.Client.Networking;
 using VRage.Game.Components;
 using VRage.Input;

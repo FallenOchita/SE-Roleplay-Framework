@@ -146,6 +146,24 @@ namespace SE.Roleplay.Framework.Torch.Commands
             catch (Exception exception) { Respond("Could not update allowlist enforcement: " + exception.Message); }
         }
 
+        private static async Task<AdminPanelMessage> CreatePanelSnapshotAsync(string message)
+        {
+            var snapshot = await GetSnapshotAsync().ConfigureAwait(false);
+            var members = snapshot["members"] as JArray ?? new JArray();
+            return new AdminPanelMessage
+            {
+                Success = true,
+                Message = message,
+                AllowlistEnabled = (bool?)snapshot["allowlistEnabled"] == true,
+                MemberCount = members.Count,
+                Members = members
+                    .Select(item => (string?)item?["steamId64"] ?? (string?)item?["SteamId64"] ?? string.Empty)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Take(30)
+                    .ToArray()
+            };
+        }
+
         internal static async Task<AdminPanelMessage> ExecutePanelRequestAsync(AdminPanelMessage request)
         {
             if (request == null)
@@ -154,52 +172,34 @@ namespace SE.Roleplay.Framework.Torch.Commands
             switch (request.Operation)
             {
                 case "GetSnapshot":
-                {
-                    var snapshot = await GetSnapshotAsync().ConfigureAwait(false);
-                    var members = snapshot["members"] as JArray ?? new JArray();
-                    return new AdminPanelMessage
-                    {
-                        Success = true,
-                        Message = "Allowlist information refreshed.",
-                        AllowlistEnabled = (bool?)snapshot["allowlistEnabled"] == true,
-                        // Keep the response below SE1's secure-message packet ceiling.
-                        MemberCount = members.Count,
-                        Members = members
-                            .Select(item => (string?)item?["steamId64"] ?? (string?)item?["SteamId64"] ?? string.Empty)
-                            .Where(value => !string.IsNullOrWhiteSpace(value))
-                            .Take(30)
-                            .ToArray()
-                    };
-                }
+                    return await CreatePanelSnapshotAsync("Allowlist information refreshed.")
+                        .ConfigureAwait(false);
+
                 case "AddMember":
-                {
                     if (!IsSteamId64(request.SteamId64) || (request.Note?.Length ?? 0) > 200)
                         throw new ArgumentException("Enter a valid 17-digit SteamID64 and a note of 200 characters or fewer.");
 
                     await SendAsync(HttpMethod.Post, "allowlist/members",
                         new { steamId64 = request.SteamId64, note = request.Note ?? string.Empty }).ConfigureAwait(false);
-                    return new AdminPanelMessage { Success = true, Message = "Member added to this server's allowlist." };
-                }
+                    return await CreatePanelSnapshotAsync("Member added to this server's allowlist.")
+                        .ConfigureAwait(false);
+
                 case "RemoveMember":
-                {
                     if (!IsSteamId64(request.SteamId64))
                         throw new ArgumentException("Enter a valid 17-digit SteamID64.");
 
                     await SendAsync(HttpMethod.Delete,
                         "allowlist/members/" + Uri.EscapeDataString(request.SteamId64), null).ConfigureAwait(false);
-                    return new AdminPanelMessage { Success = true, Message = "Member removed from this server's allowlist." };
-                }
+                    return await CreatePanelSnapshotAsync("Member removed from this server's allowlist.")
+                        .ConfigureAwait(false);
+
                 case "SetEnabled":
-                {
                     await SendAsync(HttpMethod.Put, "allowlist",
                         new { allowlistEnabled = request.Enabled }).ConfigureAwait(false);
-                    return new AdminPanelMessage
-                    {
-                        Success = true,
-                        AllowlistEnabled = request.Enabled,
-                        Message = request.Enabled ? "Allowlist enforcement enabled." : "Allowlist enforcement disabled."
-                    };
-                }
+                    return await CreatePanelSnapshotAsync(request.Enabled
+                        ? "Allowlist enforcement enabled."
+                        : "Allowlist enforcement disabled.").ConfigureAwait(false);
+
                 default:
                     throw new ArgumentException("Unknown administration operation.");
             }

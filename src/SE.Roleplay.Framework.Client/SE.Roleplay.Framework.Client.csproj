@@ -23,6 +23,10 @@
       <HintPath>$(GameBinariesPath)\VRage.Game.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="VRage.Input">
+      <HintPath>$(GameBinariesPath)\VRage.Input.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="VRage.Library">
       <HintPath>$(GameBinariesPath)\VRage.Library.dll</HintPath>
       <Private>False</Private>
@@ -38,5 +42,6 @@
     <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Common.dll')" Text="Sandbox.Common.dll was not found under GameBinariesPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Graphics.dll')" Text="Sandbox.Graphics.dll was not found under GameBinariesPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\VRage.Input.dll')" Text="VRage.Input.dll was not found under GameBinariesPath." />
   </Target>
 </Project>
