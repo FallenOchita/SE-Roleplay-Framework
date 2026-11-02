@@ -1,0 +1,124 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Sandbox.ModAPI;
+using VRage.Game.ModAPI;
+
+namespace SE.Roleplay.Framework.Torch.Commands
+{
+    /// <summary>
+    /// Server-side secure-message bridge for the in-game admin panel.
+    /// Sender identity comes from the secure-message callback, never from packet data.
+    /// </summary>
+    internal static class AdminPanelNetworkHandler
+    {
+        private const ushort NetworkChannel = 51347;
+        private static Action<ushort, byte[], ulong, bool>? _handler;
+        private static int _registered;
+
+        public static void Start()
+        {
+            var multiplayer = MyAPIGateway.Multiplayer;
+            if (multiplayer == null || !multiplayer.IsServer ||
+                System.Threading.Interlocked.Exchange(ref _registered, 1) != 0)
+                return;
+
+            _handler = OnSecureMessage;
+            multiplayer.RegisterSecureMessageHandler(NetworkChannel, _handler);
+        }
+
+        public static void Stop()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _registered, 0) == 0)
+                return;
+
+            var multiplayer = MyAPIGateway.Multiplayer;
+            if (multiplayer != null && _handler != null)
+                multiplayer.UnregisterSecureMessageHandler(NetworkChannel, _handler);
+
+            _handler = null;
+        }
+
+        private static void OnSecureMessage(ushort channel, byte[] payload, ulong senderSteamId, bool isSenderServer)
+        {
+            if (channel != NetworkChannel || isSenderServer || senderSteamId == 0 ||
+                payload == null || payload.Length == 0 || payload.Length > 3500)
+                return;
+
+            // The sender SteamID is supplied by SE's secure callback. A SteamID inside
+            // the serialized request is ignored and is never used for authorization.
+            var session = MyAPIGateway.Session;
+            if (session == null || session.GetUserPromoteLevel(senderSteamId) < MyPromoteLevel.Admin)
+            {
+                Send(senderSteamId, new AdminPanelMessage
+                {
+                    Success = false,
+                    ErrorCode = "forbidden",
+                    Message = "Server administrator permission is required."
+                });
+                return;
+            }
+
+            AdminPanelMessage request;
+            try
+            {
+                request = AdminPanelMessage.Deserialize(payload);
+                if (request.ProtocolVersion != AdminPanelMessage.CurrentProtocolVersion)
+                    throw new InvalidOperationException("Unsupported protocol version.");
+            }
+            catch
+            {
+                Send(senderSteamId, new AdminPanelMessage
+                {
+                    Success = false,
+                    ErrorCode = "invalid_request",
+                    Message = "The administration request was invalid."
+                });
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                AdminPanelMessage response;
+                try
+                {
+                    response = await ServerMembershipCommandModule.ExecutePanelRequestAsync(request)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    response = new AdminPanelMessage
+                    {
+                        RequestId = request.RequestId,
+                        Success = false,
+                        ErrorCode = "server_error",
+                        Message = "The server could not complete that administration request."
+                    };
+                }
+
+                response.RequestId = request.RequestId;
+                response.ProtocolVersion = AdminPanelMessage.CurrentProtocolVersion;
+                Send(senderSteamId, response);
+            });
+        }
+
+        private static void Send(ulong recipient, AdminPanelMessage response)
+        {
+            try
+            {
+                var multiplayer = MyAPIGateway.Multiplayer;
+                if (multiplayer == null || !multiplayer.IsServer)
+                    return;
+
+                var payload = response.Serialize();
+                // SE1 secure multiplayer messages have a 4 KiB packet ceiling.
+                if (payload.Length <= 4000)
+                    multiplayer.SendMessageTo(NetworkChannel, payload, recipient, true);
+            }
+            catch
+            {
+                // A disconnected recipient or unload must not destabilize the Torch server.
+            }
+        }
+    }
+}
