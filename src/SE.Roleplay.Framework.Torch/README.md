@@ -96,6 +96,32 @@ Server administrators can manage saved profile permissions with the `!rp admin p
 
 These commands require Torch's Admin promote level. The target player must be online with a loaded profile; profile operations intentionally do not create or edit offline accounts. Permission names are case-insensitive and may not contain whitespace. Grants are persisted to the player profile and immediately synchronized to the runtime `IPermissionService`; they are restored when the player reconnects and cleared when the player disconnects.
 
+## Public-chat moderation
+
+The Torch adapter applies server-owned blocked-phrase rules to native **global** and **faction** chat before delivery. Private/direct messages are intentionally outside this moderation path. Rules are case-insensitive substring matches; matching messages are consumed and recorded in the Torch log. The rules run even when Lua scripting is disabled. Lua `chatMessage` handlers remain an additional moderation hook after the configured phrase rules.
+
+Configuration is stored per Torch instance at:
+
+```
+<Torch instance>/Storage/SE-Roleplay-Framework/ChatModeration.json
+```
+
+The file is created on first startup and contains a versioned JSON object with an enabled flag and blocked phrase list. Back it up with the rest of the framework storage. The server loads at most 500 phrases, each 2-80 characters. If the file is malformed or unsupported, phrase matching is disabled and the Torch log records the problem; administrators can repair the file and use reload.
+
+Administrators (Torch Admin promote level) can use:
+
+| Command | Action |
+| --- | --- |
+| `!rp admin chatmoderation status` | Shows whether phrase matching is enabled and the rule count. |
+| `!rp admin chatmoderation list` | Lists the first 30 configured phrases. |
+| `!rp admin chatmoderation addword "phrase with spaces"` | Adds and persists a case-insensitive blocked phrase. |
+| `!rp admin chatmoderation removeword "phrase with spaces"` | Removes a configured phrase. |
+| `!rp admin chatmoderation enable` | Enables phrase matching. |
+| `!rp admin chatmoderation disable` | Disables matching without deleting rules. |
+| `!rp admin chatmoderation reload` | Reloads the JSON configuration from disk. |
+
+This is a simple phrase filter, not a full language classifier. Substring matching can block benign messages that contain a configured phrase; keep rules narrow and review them with players before enabling them on a live server.
+
 ## Build requirements
 
 Torch and Space Engineers ship proprietary runtime assemblies. They are not included in this repository and must be supplied from the server installation you use to test the plugin.
