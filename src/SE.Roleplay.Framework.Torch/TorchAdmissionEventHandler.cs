@@ -2,8 +2,8 @@ using System;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using SE.Roleplay.Framework.Core.Abstractions;
+using SE.Roleplay.Framework.Core.Admission;
 using Torch.API.Event;
 using Torch.Server.Managers;
 using VRage.Network;
@@ -86,14 +86,13 @@ namespace SE.Roleplay.Framework.Torch
                         }
 
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        var decision = JsonConvert.DeserializeObject<AdmissionDecisionResponse>(json);
-                        if (decision == null)
+                        if (!AdmissionDecisionParser.TryParse(json, out var shouldAdmit))
                         {
-                            _logger.Warn("Directory admission response was empty or invalid; rejecting the pending connection.");
+                            _logger.Warn("Directory admission response was empty, missing shouldAdmit, or invalid; rejecting the pending connection.");
                             return JoinResult.TicketCanceled;
                         }
 
-                        if (!decision.ShouldAdmit)
+                        if (!shouldAdmit)
                         {
                             _logger.Info("Directory allowlist denied Steam account " + steamId + ".");
                             return JoinResult.NotInGroup;
@@ -114,10 +113,5 @@ namespace SE.Roleplay.Framework.Torch
 
         public void Dispose() => _httpClient?.Dispose();
 
-        private sealed class AdmissionDecisionResponse
-        {
-            [JsonProperty("shouldAdmit")]
-            public bool ShouldAdmit { get; set; }
-        }
     }
 }
