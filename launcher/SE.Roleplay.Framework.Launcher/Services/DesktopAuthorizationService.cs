@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -112,7 +113,7 @@ public sealed class DesktopAuthorizationService
             do { header = await reader.ReadLineAsync(cancellationToken); }
             while (!string.IsNullOrEmpty(header));
 
-            var parts = requestLine.Split(' ');
+            string[] parts = requestLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 2 || !parts[0].Equals("GET", StringComparison.Ordinal))
             {
                 await RespondAsync(stream, "400 Bad Request", "Invalid authorization callback.");
