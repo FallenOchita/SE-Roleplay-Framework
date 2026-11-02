@@ -141,7 +141,7 @@ public partial class MainWindow : Window
         ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
 
     private void CharactersNav_Click(object sender, RoutedEventArgs e) =>
-        ShowPage(CharactersPage, "PLAYER PROFILE", "Characters", CharactersNav);
+        ShowPage(CharactersPage, "PLAYER ACCOUNT", "Profile & server management", CharactersNav);
 
     private void SettingsNav_Click(object sender, RoutedEventArgs e) =>
         ShowPage(SettingsPage, "PREFERENCES", "Settings", SettingsNav);
