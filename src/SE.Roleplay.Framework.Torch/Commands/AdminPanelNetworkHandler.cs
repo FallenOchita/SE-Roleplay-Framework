@@ -1,5 +1,6 @@
 using System;
-using System.Linq;
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Tasks;
 using Sandbox.ModAPI;
 using VRage.Game.ModAPI;
@@ -14,6 +15,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
     {
         private const ushort NetworkChannel = 51347;
         private static Action<ushort, byte[], ulong, bool>? _handler;
+        private static readonly ConcurrentDictionary<ulong, long> LastRequestTicks =
+            new ConcurrentDictionary<ulong, long>();
         private static int _registered;
 
         public static void Start()
@@ -37,12 +40,36 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 multiplayer.UnregisterSecureMessageHandler(NetworkChannel, _handler);
 
             _handler = null;
+            LastRequestTicks.Clear();
+        }
+
+        private static bool TryAcquireRequestSlot(ulong steamId)
+        {
+            var now = DateTime.UtcNow.Ticks;
+            var minimumInterval = TimeSpan.FromMilliseconds(400).Ticks;
+            while (true)
+            {
+                if (LastRequestTicks.TryGetValue(steamId, out var previous))
+                {
+                    if (now - previous < minimumInterval)
+                        return false;
+                    if (LastRequestTicks.TryUpdate(steamId, now, previous))
+                        return true;
+                }
+                else if (LastRequestTicks.TryAdd(steamId, now))
+                {
+                    return true;
+                }
+            }
         }
 
         private static void OnSecureMessage(ushort channel, byte[] payload, ulong senderSteamId, bool isSenderServer)
         {
             if (channel != NetworkChannel || isSenderServer || senderSteamId == 0 ||
                 payload == null || payload.Length == 0 || payload.Length > 3500)
+                return;
+
+            if (!TryAcquireRequestSlot(senderSteamId))
                 return;
 
             // The sender SteamID is supplied by SE's secure callback. A SteamID inside
