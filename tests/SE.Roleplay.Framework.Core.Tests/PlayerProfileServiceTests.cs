@@ -120,6 +120,60 @@ public sealed class PlayerProfileServiceTests
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
+    [Fact]
+    public async Task CharacterCanBeRenamedAndDescribedAndChangesPersist()
+    {
+        var directory = NewTemporaryDirectory();
+        try
+        {
+            const ulong accountId = 76561198000000010;
+            var store = new JsonPlayerDataStore(directory);
+            var identities = new PlayerIdentityService();
+            identities.Connect(accountId, "Editor");
+            var profiles = new PlayerProfileService(store, identities, 3);
+            await profiles.LoadAsync(accountId, "Editor");
+            var character = await profiles.CreateCharacterAsync(accountId, "Old Name", "Old description");
+
+            await profiles.UpdateCharacterAsync(accountId, character.CharacterId, "New Name", "New description");
+
+            var updated = Assert.Single(await profiles.GetCharactersAsync(accountId));
+            Assert.Equal("New Name", updated.Name);
+            Assert.Equal("New description", updated.Description);
+            Assert.True(updated.UpdatedAtUtc >= character.UpdatedAtUtc);
+
+            await profiles.UnloadAsync(accountId);
+            var reloaded = new PlayerProfileService(store, identities, 3);
+            await reloaded.LoadAsync(accountId, "Editor");
+            var persisted = Assert.Single(await reloaded.GetCharactersAsync(accountId));
+            Assert.Equal("New Name", persisted.Name);
+            Assert.Equal("New description", persisted.Description);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task CharacterUpdateRejectsInvalidValuesAndForeignCharacterIds()
+    {
+        var directory = NewTemporaryDirectory();
+        try
+        {
+            const ulong accountId = 76561198000000011;
+            var identities = new PlayerIdentityService();
+            identities.Connect(accountId, "Editor");
+            var profiles = new PlayerProfileService(new JsonPlayerDataStore(directory), identities, 3);
+            await profiles.LoadAsync(accountId, "Editor");
+            var character = await profiles.CreateCharacterAsync(accountId, "Valid");
+
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                profiles.UpdateCharacterAsync(accountId, character.CharacterId, " ", ""));
+            await Assert.ThrowsAsync<ArgumentException>(() =>
+                profiles.UpdateCharacterAsync(accountId, character.CharacterId, "Valid", new string('x', 161)));
+            await Assert.ThrowsAsync<System.Collections.Generic.KeyNotFoundException>(() =>
+                profiles.UpdateCharacterAsync(accountId, Guid.NewGuid(), "Other", ""));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "SE-RP-Tests-" + Guid.NewGuid().ToString("N"));
