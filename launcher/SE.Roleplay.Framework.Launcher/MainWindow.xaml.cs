@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
-        ShowPage(HomePage, "SE1 COMMUNITY", "Home", HomeNav);
+        ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
