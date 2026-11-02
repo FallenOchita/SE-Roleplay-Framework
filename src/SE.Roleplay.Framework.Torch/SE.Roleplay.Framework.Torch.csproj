@@ -65,5 +65,6 @@
     <Error Condition="!Exists('$(TorchLibPath)\NLog.dll')" Text="NLog.dll was not found under TorchLibPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Common.dll')" Text="Sandbox.Common.dll was not found under GameBinariesPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\VRage.Math.dll')" Text="VRage.Math.dll was not found under GameBinariesPath." />
   </Target>
 </Project>
