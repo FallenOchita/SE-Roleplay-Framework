@@ -201,6 +201,50 @@ public sealed class LuaScriptHostTests
     }
 
     [Fact]
+    public void ChatModeration_AllowsMessagesUnlessHandlerExplicitlyReturnsFalse()
+    {
+        const ulong playerId = 76561198000000001UL;
+        var logs = new List<string>();
+        using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, logs.Add);
+        var loaded = host.Load("moderation.lua",
+            "rp.on('chatMessage', function(player, message, channel) " +
+            "if message == 'blocked phrase' then return false end " +
+            "rp.log(player.name .. ':' .. channel .. ':' .. message) end)", "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        Assert.True(host.EvaluateChatMessage(playerId, "Alex", "GLOBAL", "hello"));
+        Assert.False(host.EvaluateChatMessage(playerId, "Alex", "global", "blocked phrase"));
+        Assert.Contains(logs, value => value.Contains("Alex:global:hello"));
+    }
+
+    [Fact]
+    public void ChatModeration_RejectsInvalidInputAndDoesNotLetLuaRewriteMessages()
+    {
+        using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, _ => { });
+        var loaded = host.Load("moderation.lua",
+            "rp.on('chatMessage', function(player, message, channel) return 'rewritten text' end)", "Test");
+        Assert.True(loaded.Succeeded, loaded.Error);
+
+        Assert.False(host.EvaluateChatMessage(0, "Alex", "global", "hello"));
+        Assert.False(host.EvaluateChatMessage(76561198000000001UL, "Alex", "unknown", "hello"));
+        Assert.False(host.EvaluateChatMessage(76561198000000001UL, "Alex", "global", new string('x', 281)));
+        Assert.True(host.EvaluateChatMessage(76561198000000001UL, "Alex", "global", "original text"));
+    }
+
+    [Fact]
+    public void ChatModeration_HandlerErrorsFailOpenAndAreLogged()
+    {
+        var logs = new List<string>();
+        using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, logs.Add);
+        var loaded = host.Load("moderation.lua",
+            "rp.on('chatMessage', function(player, message, channel) error('moderator failure') end)", "Test");
+        Assert.True(loaded.Succeeded, loaded.Error);
+
+        Assert.True(host.EvaluateChatMessage(76561198000000001UL, "Alex", "local", "hello"));
+        Assert.Contains(logs, value => value.Contains("allowing original message"));
+    }
+
+    [Fact]
     public void Load_RejectsUnsupportedPlayerEvents()
     {
         using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, _ => { });
