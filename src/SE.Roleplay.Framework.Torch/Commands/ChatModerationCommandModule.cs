@@ -19,7 +19,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
 
         internal static ChatModerationService? Service => _service;
 
-        internal static void Configure(string configurationPath)
+        internal static void Configure(string configurationPath, Action<string>? log = null)
         {
             if (string.IsNullOrWhiteSpace(configurationPath))
                 throw new ArgumentException("A moderation configuration path is required.", nameof(configurationPath));
@@ -32,19 +32,27 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 if (!string.IsNullOrWhiteSpace(directory))
                     Directory.CreateDirectory(directory);
 
-                if (!File.Exists(configurationPath))
+                try
                 {
-                    SaveLocked();
-                    return;
+                    if (!File.Exists(configurationPath))
+                    {
+                        SaveLocked();
+                        return;
+                    }
+
+                    var json = File.ReadAllText(configurationPath);
+                    var configuration = JsonConvert.DeserializeObject<ChatModerationConfiguration>(json)
+                        ?? throw new InvalidDataException("The chat moderation configuration is empty or invalid.");
+                    if (configuration.Version != 1)
+                        throw new InvalidDataException("Unsupported chat moderation configuration version.");
+
+                    _service.ReplaceRules(configuration.BlockedPhrases ?? Array.Empty<string>(), configuration.Enabled);
                 }
-
-                var json = File.ReadAllText(configurationPath);
-                var configuration = JsonConvert.DeserializeObject<ChatModerationConfiguration>(json)
-                    ?? throw new InvalidDataException("The chat moderation configuration is empty or invalid.");
-                if (configuration.Version != 1)
-                    throw new InvalidDataException("Unsupported chat moderation configuration version.");
-
-                _service.ReplaceRules(configuration.BlockedPhrases ?? Array.Empty<string>(), configuration.Enabled);
+                catch (Exception exception)
+                {
+                    _service.IsEnabled = false;
+                    log?.Invoke("Chat moderation configuration could not be loaded; phrase matching has been disabled until an administrator repairs/reloads it. " + exception.Message);
+                }
             }
         }
 
@@ -81,26 +89,29 @@ namespace SE.Roleplay.Framework.Torch.Commands
         public void AddWord(string phrase)
         {
             var service = RequireService();
-            try
+            lock (Sync)
             {
-                if (!service.AddBlockedPhrase(phrase))
+                try
                 {
-                    Respond("That blocked phrase already exists.");
-                    return;
-                }
+                    if (!service.AddBlockedPhrase(phrase))
+                    {
+                        Respond("That blocked phrase already exists.");
+                        return;
+                    }
 
-                try { Save(); }
-                catch
+                    try { SaveLocked(); }
+                    catch
+                    {
+                        service.RemoveBlockedPhrase(phrase);
+                        throw;
+                    }
+
+                    Respond("Added blocked phrase: " + phrase.Trim());
+                }
+                catch (Exception exception)
                 {
-                    service.RemoveBlockedPhrase(phrase);
-                    throw;
+                    Respond("Could not add blocked phrase: " + exception.Message);
                 }
-
-                Respond("Added blocked phrase: " + phrase.Trim());
-            }
-            catch (Exception exception)
-            {
-                Respond("Could not add blocked phrase: " + exception.Message);
             }
         }
 
@@ -109,26 +120,29 @@ namespace SE.Roleplay.Framework.Torch.Commands
         public void RemoveWord(string phrase)
         {
             var service = RequireService();
-            try
+            lock (Sync)
             {
-                if (!service.RemoveBlockedPhrase(phrase))
+                try
                 {
-                    Respond("That blocked phrase was not found.");
-                    return;
-                }
+                    if (!service.RemoveBlockedPhrase(phrase))
+                    {
+                        Respond("That blocked phrase was not found.");
+                        return;
+                    }
 
-                try { Save(); }
-                catch
+                    try { SaveLocked(); }
+                    catch
+                    {
+                        service.AddBlockedPhrase(phrase);
+                        throw;
+                    }
+
+                    Respond("Removed blocked phrase: " + phrase.Trim());
+                }
+                catch (Exception exception)
                 {
-                    service.AddBlockedPhrase(phrase);
-                    throw;
+                    Respond("Could not remove blocked phrase: " + exception.Message);
                 }
-
-                Respond("Removed blocked phrase: " + phrase.Trim());
-            }
-            catch (Exception exception)
-            {
-                Respond("Could not remove blocked phrase: " + exception.Message);
             }
         }
 
@@ -170,23 +184,21 @@ namespace SE.Roleplay.Framework.Torch.Commands
         private void SetEnabled(bool enabled)
         {
             var service = RequireService();
-            var previous = service.IsEnabled;
-            service.IsEnabled = enabled;
-            try
+            lock (Sync)
             {
-                Save();
-                Respond("Public-chat blocked-phrase moderation " + (enabled ? "enabled." : "disabled; rules were retained."));
+                var previous = service.IsEnabled;
+                service.IsEnabled = enabled;
+                try
+                {
+                    SaveLocked();
+                    Respond("Public-chat blocked-phrase moderation " + (enabled ? "enabled." : "disabled; rules were retained."));
+                }
+                catch (Exception exception)
+                {
+                    service.IsEnabled = previous;
+                    Respond("Could not save moderation settings: " + exception.Message);
+                }
             }
-            catch (Exception exception)
-            {
-                service.IsEnabled = previous;
-                Respond("Could not save moderation settings: " + exception.Message);
-            }
-        }
-
-        private static void Save()
-        {
-            lock (Sync) SaveLocked();
         }
 
         private static void SaveLocked()
