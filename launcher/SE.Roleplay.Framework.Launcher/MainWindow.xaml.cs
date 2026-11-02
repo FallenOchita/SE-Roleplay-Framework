@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
     private readonly ObservableCollection<ServerListing> _recentServers = new();
     private readonly ObservableCollection<ServerListing> _ownedServers = new();
+    private readonly ObservableCollection<OwnerServerMemberDto> _ownedServerMembers = new();
     private LauncherSettings _settings = new();
 
     public MainWindow()
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _launcherApi = new LauncherDirectoryApiClient(_directoryAuthorization);
         OwnedServersList.ItemsSource = _ownedServers;
+        OwnerMembersList.ItemsSource = _ownedServerMembers;
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
@@ -349,6 +351,127 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             OwnerStatusText.Text = $"Could not delete server listing: {ex.Message}";
+        }
+    }
+
+    private async void OwnedServersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await RefreshOwnerMembersAsync();
+    }
+
+    private async Task RefreshOwnerMembersAsync()
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server || !_directoryAuthorization.HasAccessToken)
+        {
+            _ownedServerMembers.Clear();
+            OwnerAllowlistEnabledCheckBox.IsEnabled = false;
+            OwnerAllowlistEnabledCheckBox.IsChecked = false;
+            OwnerMembersStatusText.Text = "Select one of your servers to view its allowlist.";
+            return;
+        }
+
+        OwnerMembersStatusText.Text = "Loading allowlist...";
+        OwnerAllowlistEnabledCheckBox.IsEnabled = false;
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            var enabled = await _launcherApi.GetOwnedServerAllowlistEnabledAsync(url, server.Id);
+            var members = await _launcherApi.GetOwnedServerMembersAsync(url, server.Id);
+            _ownedServerMembers.Clear();
+            foreach (var member in members) _ownedServerMembers.Add(member);
+            OwnerAllowlistEnabledCheckBox.IsChecked = enabled;
+            OwnerAllowlistEnabledCheckBox.IsEnabled = true;
+            OwnerMembersStatusText.Text = enabled
+                ? $"Allowlist enforcement is enabled. {members.Count} player(s) are listed."
+                : $"Allowlist enforcement is disabled. {members.Count} player(s) are listed.";
+        }
+        catch (Exception ex)
+        {
+            _ownedServerMembers.Clear();
+            OwnerMembersStatusText.Text = $"Could not load this server's allowlist: {ex.Message}";
+        }
+    }
+
+    private async void SaveOwnerAdmission_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            OwnerMembersStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            var enabled = OwnerAllowlistEnabledCheckBox.IsChecked == true;
+            await _launcherApi.SetOwnedServerAllowlistEnabledAsync(url, server.Id, enabled);
+            OwnerMembersStatusText.Text = enabled
+                ? "Allowlist enforcement enabled. Players not on the list will be denied admission."
+                : "Allowlist enforcement disabled. The list is retained but is not enforced.";
+        }
+        catch (Exception ex)
+        {
+            OwnerMembersStatusText.Text = $"Could not update admission settings: {ex.Message}";
+        }
+    }
+
+    private async void AddOwnerMember_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            OwnerMembersStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+
+        var steamId64 = OwnerMemberSteamIdBox.Text.Trim();
+        if (steamId64.Length != 17 || !steamId64.All(char.IsAsciiDigit))
+        {
+            OwnerMembersStatusText.Text = "Enter a valid 17-digit SteamID64.";
+            return;
+        }
+
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            await _launcherApi.AddOwnedServerMemberAsync(url, server.Id, steamId64, OwnerMemberNoteBox.Text.Trim());
+            OwnerMemberSteamIdBox.Clear();
+            OwnerMemberNoteBox.Clear();
+            await RefreshOwnerMembersAsync();
+            OwnerMembersStatusText.Text = $"Added {steamId64} to {server.Name}'s allowlist.";
+        }
+        catch (Exception ex)
+        {
+            OwnerMembersStatusText.Text = $"Could not add player: {ex.Message}";
+        }
+    }
+
+    private async void RemoveOwnerMember_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server ||
+            OwnerMembersList.SelectedItem is not OwnerServerMemberDto member)
+        {
+            OwnerMembersStatusText.Text = "Select a server and a player to remove.";
+            return;
+        }
+
+        if (MessageBox.Show($"Remove SteamID64 {member.SteamId64} from {server.Name}'s allowlist?",
+            "Remove allowlist member", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            await _launcherApi.RemoveOwnedServerMemberAsync(url, server.Id, member.SteamId64);
+            await RefreshOwnerMembersAsync();
+            OwnerMembersStatusText.Text = $"Removed {member.SteamId64} from {server.Name}'s allowlist.";
+        }
+        catch (Exception ex)
+        {
+            OwnerMembersStatusText.Text = $"Could not remove player: {ex.Message}";
         }
     }
 
