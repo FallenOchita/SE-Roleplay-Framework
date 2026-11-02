@@ -35,6 +35,7 @@ namespace SE.Roleplay.Framework.Torch
         private IFrameworkContext? _context;
         private ITorchSessionManager? _sessionManager;
         private IMultiplayerManagerBase? _multiplayer;
+        private IChatManagerServer? _chatManager;
         private DateTime _nextAutosaveUtc;
         private int _autosaveRunning;
         private bool _disposed;
@@ -141,6 +142,19 @@ namespace SE.Roleplay.Framework.Torch
             // It validates sender identity and admin level before routing requests to the directory.
             AdminPanelNetworkHandler.Start();
 
+            // Torch exposes a pre-delivery server callback with the authenticated author SteamID.
+            // Subscribe only for the active world session and always unsubscribe on detach.
+            _chatManager = session.Managers.GetManager<IChatManagerServer>();
+            if (_chatManager != null)
+            {
+                _chatManager.MessageProcessing += OnChatMessageProcessing;
+                _context?.Logger.Info("Attached Torch native chat moderation hook.");
+            }
+            else
+            {
+                _context?.Logger.Warn("Torch IChatManagerServer was unavailable; native Lua chat moderation is inactive.");
+            }
+
             _multiplayer = session.Managers.GetManager<IMultiplayerManagerBase>();
             if (_multiplayer == null)
             {
@@ -158,13 +172,41 @@ namespace SE.Roleplay.Framework.Torch
         private void DetachSession()
         {
             AdminPanelNetworkHandler.Stop();
-            if (_multiplayer == null)
+
+            if (_chatManager != null)
+            {
+                _chatManager.MessageProcessing -= OnChatMessageProcessing;
+                _chatManager = null;
+            }
+
+            if (_multiplayer != null)
+            {
+                _multiplayer.PlayerJoined -= OnPlayerJoined;
+                _multiplayer.PlayerLeft -= OnPlayerLeft;
+                _multiplayer = null;
+            }
+
+            _onlinePlayers.Clear();
+        }
+
+        private void OnChatMessageProcessing(TorchChatMessage message, ref bool consumed)
+        {
+            if (consumed || _luaScriptHost == null ||
+                !message.AuthorSteamId.HasValue || message.AuthorSteamId.Value == 0)
                 return;
 
-            _multiplayer.PlayerJoined -= OnPlayerJoined;
-            _multiplayer.PlayerLeft -= OnPlayerLeft;
-            _multiplayer = null;
-            _onlinePlayers.Clear();
+            // Native public and faction channels are moderated. Private/direct messages are
+            // deliberately left outside this public-chat moderation pipeline.
+            var channel = message.Channel.ToString().ToLowerInvariant();
+            if (channel != "global" && channel != "faction")
+                return;
+
+            if (!_luaScriptHost.EvaluateChatMessage(
+                message.AuthorSteamId.Value,
+                message.Author ?? "Player",
+                channel,
+                message.Message ?? string.Empty))
+                consumed = true;
         }
 
         private void OnPlayerJoined(IPlayer player)
