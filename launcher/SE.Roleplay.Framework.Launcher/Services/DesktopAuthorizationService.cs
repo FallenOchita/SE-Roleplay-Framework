@@ -19,8 +19,9 @@ public sealed class DesktopAuthorizationService
     private string? _accessToken;
 
     public bool HasAccessToken => !string.IsNullOrWhiteSpace(_accessToken);
+    public string? AccessToken => _accessToken;
 
-    public async Task<DesktopTokenPair> AuthorizeAsync(string directoryUrl, CancellationToken cancellationToken = default)
+    public async Task<DesktopTokenPair> AuthorizeAsync(string directoryUrl, string expectedSteamId64, CancellationToken cancellationToken = default)
     {
         var directory = ValidateDirectoryUrl(directoryUrl);
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -56,10 +57,11 @@ public sealed class DesktopAuthorizationService
             ?? throw new InvalidOperationException("The directory returned an empty token response.");
         ValidateTokenPair(pair);
         _accessToken = pair.AccessToken;
+        await VerifySteamIdentityAsync(directory, expectedSteamId64, cancellationToken);
         return pair;
     }
 
-    public async Task<DesktopTokenPair> RefreshAsync(string directoryUrl, string refreshToken,
+    public async Task<DesktopTokenPair> RefreshAsync(string directoryUrl, string refreshToken, string expectedSteamId64,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
@@ -73,7 +75,25 @@ public sealed class DesktopAuthorizationService
             ?? throw new InvalidOperationException("The directory returned an empty token response.");
         ValidateTokenPair(pair);
         _accessToken = pair.AccessToken;
+        await VerifySteamIdentityAsync(directory, expectedSteamId64, cancellationToken);
         return pair;
+    }
+
+    private async Task VerifySteamIdentityAsync(Uri directory, string expectedSteamId64, CancellationToken cancellationToken)
+    {
+        if (expectedSteamId64.Length != 17 || !expectedSteamId64.All(char.IsAsciiDigit))
+            throw new InvalidOperationException("The saved Steam identity is invalid.");
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(directory, "/api/launcher/me"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+        using var response = await Http.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var identity = await response.Content.ReadFromJsonAsync<DesktopIdentity>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("The directory returned no authenticated identity.");
+        if (!string.Equals(identity.SteamId64, expectedSteamId64, StringComparison.Ordinal))
+        {
+            _accessToken = null;
+            throw new InvalidOperationException("The browser authorized a different Steam account. Sign in with the same Steam account in both windows.");
+        }
     }
 
     public void ClearAccessToken() => _accessToken = null;
@@ -185,3 +205,5 @@ public sealed record DesktopTokenRequest(
 
 public sealed record DesktopTokenPair(
     string AccessToken, string RefreshToken, string TokenType, int ExpiresIn);
+
+public sealed record DesktopIdentity(string SteamId64, string ClientId);
