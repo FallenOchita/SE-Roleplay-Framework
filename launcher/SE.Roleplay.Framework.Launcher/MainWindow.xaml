@@ -172,7 +172,7 @@
          <TextBlock Text="YOUR SERVERS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
          <Button DockPanel.Dock="Right" Content="REFRESH" Click="RefreshAccount_Click"/>
         </DockPanel>
-        <ListBox x:Name="OwnedServersList" DisplayMemberPath="Name" MinHeight="65" MaxHeight="150" Margin="0,0,0,10"/>
+        <ListBox x:Name="OwnedServersList" DisplayMemberPath="Name" MinHeight="65" MaxHeight="150" Margin="0,0,0,10" SelectionChanged="OwnedServersList_SelectionChanged"/>
         <WrapPanel Margin="0,0,0,14">
          <Button Content="ROTATE SELECTED API KEY" Click="RotateServerKey_Click"/>
          <Button Content="DELETE SELECTED SERVER" Click="DeleteOwnedServer_Click"/>
@@ -195,6 +195,23 @@
         <Button Content="REGISTER SERVER" HorizontalAlignment="Left" Click="RegisterOwnedServer_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
         <TextBlock Text="NEW / ROTATED SERVER API KEY — COPY AND STORE SECURELY" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="0,14,0,4"/>
         <TextBox x:Name="OwnerServerApiKeyBox" IsReadOnly="True" Padding="8" TextWrapping="Wrap" MinHeight="42"/>
+        <Border Background="#18232C" Padding="14" CornerRadius="8" Margin="0,16,0,0">
+         <StackPanel>
+          <TextBlock Text="SERVER ALLOWLIST &amp; MEMBERS" FontSize="16" FontWeight="Bold"/>
+          <TextBlock Text="Select one of your servers above to manage who may join when allowlist enforcement is enabled." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,10"/>
+          <CheckBox x:Name="AllowlistEnabledCheckBox" Content="Enable allowlist enforcement for this server" Margin="0,0,0,8"/>
+          <Button Content="SAVE ENFORCEMENT SETTING" HorizontalAlignment="Left" Click="SaveAllowlistSettings_Click"/>
+          <TextBlock Text="ADD MEMBER BY STEAMID64" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="0,14,0,4"/>
+          <TextBox x:Name="MemberSteamIdBox" Padding="8" Margin="0,0,0,8" MaxLength="17"/>
+          <TextBlock Text="NOTE (OPTIONAL, 200 CHARACTERS MAX)" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+          <TextBox x:Name="MemberNoteBox" Padding="8" Margin="0,4,0,8" MaxLength="200"/>
+          <Button Content="ADD TO ALLOWLIST" HorizontalAlignment="Left" Click="AddServerMember_Click" Background="{StaticResource AccentBrush}" Foreground="#0B1712"/>
+          <TextBlock Text="CURRENT MEMBERS" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="Bold" Margin="0,14,0,4"/>
+          <ListBox x:Name="ServerMembersList" DisplayMemberPath="SteamId64" MinHeight="65" MaxHeight="160" Margin="0,0,0,8"/>
+          <Button Content="REMOVE SELECTED MEMBER" HorizontalAlignment="Left" Click="RemoveServerMember_Click"/>
+          <TextBlock x:Name="MembersStatusText" Text="Select one of your servers to view its allowlist." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+         </StackPanel>
+        </Border>
         <TextBlock x:Name="OwnerStatusText" Text="Sign in with Steam and connect the directory to manage your servers." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
        </StackPanel>
       </Border>
