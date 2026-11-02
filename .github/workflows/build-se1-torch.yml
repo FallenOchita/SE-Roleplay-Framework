@@ -1,0 +1,46 @@
+name: Build SE1 Torch adapter
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/SE.Roleplay.Framework.Torch/**"
+      - "src/SE.Roleplay.Framework.Core/**"
+      - ".github/workflows/build-se1-torch.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-se1-torch:
+    # This runner must have the SE1 DedicatedServer64 binaries and Torch libraries installed.
+    # Configure TORCH_LIB_PATH and TORCH_GAME_BINARIES_PATH as runner environment variables.
+    runs-on: [self-hosted, windows, se1-torch]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET Framework build tools
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Validate SE1 and Torch reference paths
+        shell: pwsh
+        run: |
+          if (-not $env:TORCH_LIB_PATH) { throw "TORCH_LIB_PATH is not configured on this runner." }
+          if (-not $env:TORCH_GAME_BINARIES_PATH) { throw "TORCH_GAME_BINARIES_PATH is not configured on this runner." }
+          $required = @(
+            "$env:TORCH_LIB_PATH\Torch.dll",
+            "$env:TORCH_LIB_PATH\Torch.API.dll",
+            "$env:TORCH_LIB_PATH\Torch.Server.dll",
+            "$env:TORCH_LIB_PATH\NLog.dll",
+            "$env:TORCH_GAME_BINARIES_PATH\Sandbox.Common.dll",
+            "$env:TORCH_GAME_BINARIES_PATH\VRage.Game.dll"
+          )
+          $missing = $required | Where-Object { -not (Test-Path $_) }
+          if ($missing) { $missing | ForEach-Object { Write-Error "Missing dependency: $_" }; exit 1 }
+
+      - name: Build SE1 Torch adapter
+        shell: pwsh
+        run: |
+          msbuild src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj /restore /p:Configuration=Release /p:TorchLibPath="$env:TORCH_LIB_PATH" /p:GameBinariesPath="$env:TORCH_GAME_BINARIES_PATH" /verbosity:minimal
