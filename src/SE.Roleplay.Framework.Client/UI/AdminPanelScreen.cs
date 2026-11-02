@@ -98,7 +98,7 @@ namespace SE.Roleplay.Framework.Client.UI
 
         private void RemoveMember()
         {
-            var steamId = _steamIdInput.Text.Trim();
+            var steamId = _steamIdInput.Text.ToString().Trim();
             if (!IsSteamId64(steamId))
             {
                 _status.Text = "Enter a valid 17-digit SteamID64.";
