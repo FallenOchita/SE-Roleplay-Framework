@@ -113,6 +113,30 @@ namespace SE.Roleplay.Framework.Core.Persistence
             finally { gate.Release(); }
         }
 
+        public async Task UpdateCharacterAsync(ulong platformId, Guid characterId, string name, string description, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 32)
+                throw new ArgumentException("Character names must be between 1 and 32 characters.", nameof(name));
+            if (description != null && description.Length > 160)
+                throw new ArgumentException("Character descriptions must be 160 characters or fewer.", nameof(description));
+
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var record = GetLoadedProfile(platformId);
+                var character = record.Characters.FirstOrDefault(c => c.CharacterId == characterId);
+                if (character == null)
+                    throw new KeyNotFoundException("The requested character does not belong to this account.");
+
+                character.Name = name.Trim();
+                character.Description = description?.Trim() ?? string.Empty;
+                character.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                await SaveRecordAsync(record, cancellationToken).ConfigureAwait(false);
+            }
+            finally { gate.Release(); }
+        }
+
         public async Task DeleteCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default)
         {
             var gate = GetLock(platformId);

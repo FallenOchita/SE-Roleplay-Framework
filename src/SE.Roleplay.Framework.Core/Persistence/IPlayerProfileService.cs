@@ -11,6 +11,7 @@ namespace SE.Roleplay.Framework.Core.Persistence
         Task<PlayerRecord> LoadAsync(ulong platformId, string displayName, CancellationToken cancellationToken = default);
         Task<PlayerCharacter> CreateCharacterAsync(ulong platformId, string name, string description = "", CancellationToken cancellationToken = default);
         Task SelectCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
+        Task UpdateCharacterAsync(ulong platformId, Guid characterId, string name, string description, CancellationToken cancellationToken = default);
         Task DeleteCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default);
         Task<IReadOnlyCollection<PlayerCharacter>> GetCharactersAsync(ulong platformId, CancellationToken cancellationToken = default);
         Task<IReadOnlyCollection<string>> GetPermissionsAsync(ulong platformId, CancellationToken cancellationToken = default);

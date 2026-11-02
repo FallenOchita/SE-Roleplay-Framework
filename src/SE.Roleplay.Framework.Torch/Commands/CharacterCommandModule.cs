@@ -137,6 +137,60 @@ namespace SE.Roleplay.Framework.Torch.Commands
             }
         }
 
+        [Permission(MyPromoteLevel.None)]
+        [Command("rename", "Renames one of your characters by its number in the list.")]
+        public async void Rename(int number, string newName)
+        {
+            var steamId = GetSteamId();
+            if (steamId == 0) return;
+            if (string.IsNullOrWhiteSpace(newName) || newName.Trim().Length > 32)
+            {
+                Respond("Character names must be between 1 and 32 characters.");
+                return;
+            }
+
+            try
+            {
+                var profiles = RequireFramework().Profiles;
+                var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
+                if (number < 1 || character == null)
+                {
+                    Respond("Choose a character number from the current list.");
+                    return;
+                }
+                await profiles.UpdateCharacterAsync(steamId, character.CharacterId, newName, character.Description).ConfigureAwait(false);
+                Respond("Renamed character to " + newName.Trim() + ".");
+            }
+            catch (Exception exception) { Respond("Could not rename character: " + exception.Message); }
+        }
+
+        [Permission(MyPromoteLevel.None)]
+        [Command("describe", "Changes the description of one of your characters by its number in the list.")]
+        public async void Describe(int number, string description)
+        {
+            var steamId = GetSteamId();
+            if (steamId == 0) return;
+            if (description != null && description.Length > 160)
+            {
+                Respond("Character descriptions must be 160 characters or fewer.");
+                return;
+            }
+
+            try
+            {
+                var profiles = RequireFramework().Profiles;
+                var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
+                if (number < 1 || character == null)
+                {
+                    Respond("Choose a character number from the current list.");
+                    return;
+                }
+                await profiles.UpdateCharacterAsync(steamId, character.CharacterId, character.Name, description ?? string.Empty).ConfigureAwait(false);
+                Respond("Updated the description for " + character.Name + ".");
+            }
+            catch (Exception exception) { Respond("Could not update character description: " + exception.Message); }
+        }
+
         private ulong GetSteamId()
         {
             var steamId = Context.Player?.SteamUserId ?? 0;
