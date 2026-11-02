@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Net.Http.Json;
 
 namespace SE.Roleplay.Framework.Launcher.Services;
 
