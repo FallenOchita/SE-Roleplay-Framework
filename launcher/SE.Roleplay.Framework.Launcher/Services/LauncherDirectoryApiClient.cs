@@ -56,7 +56,7 @@ public sealed class LauncherDirectoryApiClient(DesktopAuthorizationService autho
     {
         var result = await SendAsync<OwnedServerMembersResponse>(HttpMethod.Get, directoryUrl,
             $"/api/launcher/owner/servers/{Uri.EscapeDataString(serverId)}/members", null, cancellationToken);
-        return result?.Members ?? Array.Empty<OwnerServerMemberDto>();
+        return result is null ? Array.Empty<OwnerServerMemberDto>() : result.Members;
     }
 
     public async Task AddOwnedServerMemberAsync(string directoryUrl, string serverId, string steamId64, string note,
