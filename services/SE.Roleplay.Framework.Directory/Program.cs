@@ -732,6 +732,17 @@ app.MapGet("/api/servers/{serverId}/admission/{steamId64}", async Task<IResult> 
     return decision is null ? Results.Unauthorized() : Results.Ok(decision);
 });
 
+// The authenticated launcher owner can read the current admission setting for their server.
+app.MapGet("/api/launcher/owner/servers/{serverId}/admission", async Task<IResult> (
+    string serverId, ClaimsPrincipal user, ServerMembershipStore memberships,
+    CancellationToken cancellationToken) =>
+{
+    var ownerSteamId = OwnerRequestSecurity.GetVerifiedSteamId(user);
+    if (ownerSteamId is null) return Results.Unauthorized();
+    var enabled = await memberships.GetAllowlistEnabledAsync(serverId, ownerSteamId, cancellationToken);
+    return enabled is null ? Results.NotFound() : Results.Ok(new { allowlistEnabled = enabled.Value });
+}).RequireAuthorization("LauncherBearer");
+
 // Only the authenticated owner can enable or disable enforcement.
 app.MapPut("/api/launcher/owner/servers/{serverId}/admission", async Task<IResult> (
     string serverId, ClaimsPrincipal user, UpdateServerAdmissionSettingsRequest request,
