@@ -137,6 +137,43 @@ namespace SE.Roleplay.Framework.Core.Persistence
             finally { gate.Release(); }
         }
 
+
+        /// <summary>Sets or removes a bounded metadata entry on one of the player's characters.</summary>
+        public async Task SetCharacterMetadataAsync(ulong platformId, Guid characterId, string key, string? value, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(key) || key.Length > 32 ||
+                key.Any(c => !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                               (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-')))
+                throw new ArgumentException("Metadata keys must be 1-32 characters and use only letters, digits, '.', '_' or '-'.", nameof(key));
+            if (value != null && value.Length > 256)
+                throw new ArgumentException("Metadata values must be 256 characters or fewer.", nameof(value));
+
+            var normalizedKey = key.Trim().ToLowerInvariant();
+            var gate = GetLock(platformId);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var record = GetLoadedProfile(platformId);
+                var character = record.Characters.FirstOrDefault(c => c.CharacterId == characterId);
+                if (character == null)
+                    throw new KeyNotFoundException("The requested character does not belong to this account.");
+
+                character.Metadata = character.Metadata ?? new Dictionary<string, string>();
+                if (value == null)
+                    character.Metadata.Remove(normalizedKey);
+                else
+                {
+                    if (!character.Metadata.ContainsKey(normalizedKey) && character.Metadata.Count >= 16)
+                        throw new InvalidOperationException("A character can have at most 16 metadata entries.");
+                    character.Metadata[normalizedKey] = value.Trim();
+                }
+
+                character.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                await SaveRecordAsync(record, cancellationToken).ConfigureAwait(false);
+            }
+            finally { gate.Release(); }
+        }
+
         public async Task DeleteCharacterAsync(ulong platformId, Guid characterId, CancellationToken cancellationToken = default)
         {
             var gate = GetLock(platformId);

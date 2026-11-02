@@ -34,6 +34,9 @@ Players can manage their own characters through the server chat:
 | `!rp character select 2` | Selects the character at position 2 in the list. |
 | `!rp character rename 2 "New Name"` | Renames the character at position 2. |
 | `!rp character describe 2 "New description"` | Updates its description. |
+| `!rp character meta 2 faction "Independent"` | Sets a metadata field. |
+| `!rp character metalist 2` | Lists metadata fields. |
+| `!rp character metadel 2 faction` | Removes a metadata field. |
 | `!rp character delete 2` | Deletes the character at position 2 in the list. |
 
 Character positions are based on the current list order. Players can only operate on the profile associated with their own Steam account. The profile service enforces the server-configured five-character limit. Commands are registered through Torch's `CommandManager` when the plugin is loaded into a session.

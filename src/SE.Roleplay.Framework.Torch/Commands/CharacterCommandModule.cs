@@ -191,6 +191,59 @@ namespace SE.Roleplay.Framework.Torch.Commands
             catch (Exception exception) { Respond("Could not update character description: " + exception.Message); }
         }
 
+
+        [Permission(MyPromoteLevel.None)]
+        [Command("meta", "Sets a metadata field on one of your characters.")]
+        public async void SetMetadata(int number, string key, string value)
+        {
+            var steamId = GetSteamId();
+            if (steamId == 0) return;
+            try
+            {
+                var profiles = RequireFramework().Profiles;
+                var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
+                if (number < 1 || character == null) { Respond("Choose a character number from the current list."); return; }
+                await profiles.SetCharacterMetadataAsync(steamId, character.CharacterId, key, value).ConfigureAwait(false);
+                Respond("Saved metadata '" + key + "' for " + character.Name + ".");
+            }
+            catch (Exception exception) { Respond("Could not save character metadata: " + exception.Message); }
+        }
+
+        [Permission(MyPromoteLevel.None)]
+        [Command("metadel", "Removes a metadata field from one of your characters.")]
+        public async void RemoveMetadata(int number, string key)
+        {
+            var steamId = GetSteamId();
+            if (steamId == 0) return;
+            try
+            {
+                var profiles = RequireFramework().Profiles;
+                var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
+                if (number < 1 || character == null) { Respond("Choose a character number from the current list."); return; }
+                await profiles.SetCharacterMetadataAsync(steamId, character.CharacterId, key, null).ConfigureAwait(false);
+                Respond("Removed metadata '" + key + "' from " + character.Name + ".");
+            }
+            catch (Exception exception) { Respond("Could not remove character metadata: " + exception.Message); }
+        }
+
+        [Permission(MyPromoteLevel.None)]
+        [Command("metalist", "Lists metadata for one of your characters.")]
+        public async void ListMetadata(int number)
+        {
+            var steamId = GetSteamId();
+            if (steamId == 0) return;
+            try
+            {
+                var character = (await RequireFramework().Profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
+                if (number < 1 || character == null) { Respond("Choose a character number from the current list."); return; }
+                var entries = character.Metadata.OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(entry => entry.Key + " = " + entry.Value).ToArray();
+                Respond(entries.Length == 0 ? character.Name + " has no metadata fields." :
+                    "Metadata for " + character.Name + ":\n" + string.Join("\n", entries));
+            }
+            catch (Exception exception) { Respond("Could not list character metadata: " + exception.Message); }
+        }
+
         private ulong GetSteamId()
         {
             var steamId = Context.Player?.SteamUserId ?? 0;
