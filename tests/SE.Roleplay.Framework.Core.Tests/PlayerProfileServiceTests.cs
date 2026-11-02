@@ -93,6 +93,33 @@ public sealed class PlayerProfileServiceTests
         }
     }
 
+    [Fact]
+    public async Task PermissionGrantsSurviveUnloadAndReloadAndSupportWildcard()
+    {
+        var directory = NewTemporaryDirectory();
+        try
+        {
+            const ulong accountId = 76561198000000004;
+            var store = new JsonPlayerDataStore(directory);
+            var identities = new PlayerIdentityService();
+            identities.Connect(accountId, "PermissionTester");
+            var profiles = new PlayerProfileService(store, identities, 3);
+            await profiles.LoadAsync(accountId, "PermissionTester");
+            await profiles.GrantPermissionAsync(accountId, "admin.kick");
+            await profiles.GrantPermissionAsync(accountId, "admin.kick");
+            Assert.True(await profiles.HasPermissionAsync(accountId, "ADMIN.KICK"));
+            Assert.False(await profiles.HasPermissionAsync(accountId, "admin.ban"));
+            await profiles.UnloadAsync(accountId);
+            var reloaded = new PlayerProfileService(store, identities, 3);
+            await reloaded.LoadAsync(accountId, "PermissionTester");
+            Assert.True(await reloaded.HasPermissionAsync(accountId, "admin.kick"));
+            await reloaded.RevokePermissionAsync(accountId, "ADMIN.KICK");
+            Assert.False(await reloaded.HasPermissionAsync(accountId, "admin.kick"));
+            await reloaded.GrantPermissionAsync(accountId, "*");
+            Assert.True(await reloaded.HasPermissionAsync(accountId, "anything.here"));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
     private static string NewTemporaryDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), "SE-RP-Tests-" + Guid.NewGuid().ToString("N"));
