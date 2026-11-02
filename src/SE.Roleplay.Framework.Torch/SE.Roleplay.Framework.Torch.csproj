@@ -44,6 +44,10 @@
       <HintPath>$(GameBinariesPath)\VRage.Library.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="VRage.Math">
+      <HintPath>$(GameBinariesPath)\VRage.Math.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
