@@ -132,6 +132,18 @@ namespace SE.Roleplay.Framework.Scripting
         public void PublishPlayerLeft(ulong platformId, string displayName) =>
             PublishPlayerEvent("playerLeft", platformId, displayName);
 
+        public void PublishCharacterCreated(ulong platformId, string displayName, Guid characterId, string name, string description) =>
+            PublishCharacterEvent("characterCreated", platformId, displayName, characterId, name, description);
+
+        public void PublishCharacterSelected(ulong platformId, string displayName, Guid characterId, string name, string description) =>
+            PublishCharacterEvent("characterSelected", platformId, displayName, characterId, name, description);
+
+        public void PublishCharacterUpdated(ulong platformId, string displayName, Guid characterId, string name, string description) =>
+            PublishCharacterEvent("characterUpdated", platformId, displayName, characterId, name, description);
+
+        public void PublishCharacterDeleted(ulong platformId, string displayName, Guid characterId, string name, string description) =>
+            PublishCharacterEvent("characterDeleted", platformId, displayName, characterId, name, description);
+
         private void PublishPlayerEvent(string eventName, ulong platformId, string displayName)
         {
             if (platformId == 0) return;
@@ -171,6 +183,51 @@ namespace SE.Roleplay.Framework.Scripting
             }
         }
 
+        private void PublishCharacterEvent(string eventName, ulong platformId, string displayName,
+            Guid characterId, string characterName, string description)
+        {
+            if (platformId == 0 || characterId == Guid.Empty) return;
+            LoadedModule[] modules;
+            lock (_sync)
+            {
+                if (_disposed) return;
+                modules = _modules.Values.ToArray();
+            }
+
+            foreach (var module in modules)
+            {
+                DynValue[] handlers;
+                lock (module.Sync)
+                {
+                    if (module.IsDisposed || !module.EventHandlers.TryGetValue(eventName, out var registered))
+                        continue;
+                    handlers = registered.ToArray();
+                }
+
+                foreach (var handler in handlers)
+                {
+                    lock (module.Sync)
+                    {
+                        if (module.IsDisposed) break;
+                        try
+                        {
+                            module.Budget.Reset();
+                            var player = DynValue.NewTable(CreatePlayerTable(module.Script, platformId, displayName));
+                            var character = new Table(module.Script);
+                            character["id"] = characterId.ToString("D");
+                            character["name"] = characterName ?? string.Empty;
+                            character["description"] = description ?? string.Empty;
+                            module.Script.Call(handler, player, DynValue.NewTable(character));
+                        }
+                        catch (Exception exception)
+                        {
+                            _logger("Lua " + eventName + " handler in " + module.Name + " failed: " + exception.Message);
+                        }
+                    }
+                }
+            }
+        }
+
         private void RegisterHostApi(LoadedModule module, string serverName)
         {
             var rp = new Table(module.Script);
@@ -197,12 +254,18 @@ namespace SE.Roleplay.Framework.Scripting
             });
             rp["on"] = (Action<string, DynValue>)((eventName, handler) =>
             {
-                if (!string.Equals(eventName, "playerJoined", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(eventName, "playerLeft", StringComparison.OrdinalIgnoreCase))
-                    throw new ScriptRuntimeException("Supported events are playerJoined and playerLeft.");
+                var supportedEvents = new[]
+                {
+                    "playerJoined", "playerLeft", "characterCreated", "characterSelected",
+                    "characterUpdated", "characterDeleted"
+                };
+                var normalizedEvent = supportedEvents.FirstOrDefault(value =>
+                    string.Equals(value, eventName, StringComparison.OrdinalIgnoreCase));
+                if (normalizedEvent == null)
+                    throw new ScriptRuntimeException("Supported events are playerJoined, playerLeft, characterCreated, characterSelected, characterUpdated, and characterDeleted.");
                 if (handler == null || handler.Type != DataType.Function)
                     throw new ScriptRuntimeException("The event handler must be a function.");
-                var key = eventName.Equals("playerJoined", StringComparison.OrdinalIgnoreCase) ? "playerJoined" : "playerLeft";
+                var key = normalizedEvent;
                 if (!module.EventHandlers.TryGetValue(key, out var handlers))
                     module.EventHandlers[key] = handlers = new List<DynValue>();
                 if (handlers.Count >= 20)

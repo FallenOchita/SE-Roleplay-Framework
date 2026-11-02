@@ -76,6 +76,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                     .CreateCharacterAsync(steamId, name, description ?? string.Empty)
                     .ConfigureAwait(false);
                 Respond("Created character " + character.Name + " on this server.");
+                LuaCommandModule.Host?.PublishCharacterCreated(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, character.Description);
             }
             catch (Exception exception)
             {
@@ -103,6 +105,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 var character = characters[number - 1];
                 await profiles.SelectCharacterAsync(steamId, character.CharacterId).ConfigureAwait(false);
                 Respond("Selected " + character.Name + " for this server.");
+                LuaCommandModule.Host?.PublishCharacterSelected(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, character.Description);
             }
             catch (Exception exception)
             {
@@ -130,6 +134,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 var character = characters[number - 1];
                 await profiles.DeleteCharacterAsync(steamId, character.CharacterId).ConfigureAwait(false);
                 Respond("Deleted " + character.Name + " from this server.");
+                LuaCommandModule.Host?.PublishCharacterDeleted(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, character.Description);
             }
             catch (Exception exception)
             {
@@ -159,6 +165,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                     return;
                 }
                 await profiles.UpdateCharacterAsync(steamId, character.CharacterId, newName, character.Description).ConfigureAwait(false);
+                LuaCommandModule.Host?.PublishCharacterUpdated(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, newName.Trim(), character.Description);
                 Respond("Renamed character to " + newName.Trim() + ".");
             }
             catch (Exception exception) { Respond("Could not rename character: " + exception.Message); }
@@ -186,6 +194,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                     return;
                 }
                 await profiles.UpdateCharacterAsync(steamId, character.CharacterId, character.Name, description ?? string.Empty).ConfigureAwait(false);
+                LuaCommandModule.Host?.PublishCharacterUpdated(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, description ?? string.Empty);
                 Respond("Updated the description for " + character.Name + ".");
             }
             catch (Exception exception) { Respond("Could not update character description: " + exception.Message); }
@@ -204,6 +214,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
                 if (number < 1 || character == null) { Respond("Choose a character number from the current list."); return; }
                 await profiles.SetCharacterMetadataAsync(steamId, character.CharacterId, key, value).ConfigureAwait(false);
+                LuaCommandModule.Host?.PublishCharacterUpdated(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, character.Description);
                 Respond("Saved metadata '" + key + "' for " + character.Name + ".");
             }
             catch (Exception exception) { Respond("Could not save character metadata: " + exception.Message); }
@@ -221,6 +233,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 var character = (await profiles.GetCharactersAsync(steamId).ConfigureAwait(false)).ElementAtOrDefault(number - 1);
                 if (number < 1 || character == null) { Respond("Choose a character number from the current list."); return; }
                 await profiles.SetCharacterMetadataAsync(steamId, character.CharacterId, key, null).ConfigureAwait(false);
+                LuaCommandModule.Host?.PublishCharacterUpdated(steamId, Context.Player?.DisplayName ?? "Player",
+                    character.CharacterId, character.Name, character.Description);
                 Respond("Removed metadata '" + key + "' from " + character.Name + ".");
             }
             catch (Exception exception) { Respond("Could not remove character metadata: " + exception.Message); }

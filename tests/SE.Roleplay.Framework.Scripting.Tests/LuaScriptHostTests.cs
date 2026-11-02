@@ -44,6 +44,31 @@ public sealed class LuaScriptHostTests
     }
 
     [Fact]
+    public void Load_RegistersCharacterLifecycleEvents()
+    {
+        var logs = new List<string>();
+        using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, logs.Add);
+        var loaded = host.Load("characters.lua",
+            "rp.on('characterCreated', function(player, character) rp.log('created:' .. player.name .. ':' .. character.name) end); " +
+            "rp.on('characterSelected', function(player, character) rp.log('selected:' .. character.id) end); " +
+            "rp.on('characterUpdated', function(player, character) rp.log('updated:' .. character.description) end); " +
+            "rp.on('characterDeleted', function(player, character) rp.log('deleted:' .. character.name) end)",
+            "Test Server");
+
+        Assert.True(loaded.Succeeded, loaded.Error);
+        var id = System.Guid.NewGuid();
+        host.PublishCharacterCreated(76561198000000001UL, "Alex", id, "Avery", "A pilot");
+        host.PublishCharacterSelected(76561198000000001UL, "Alex", id, "Avery", "A pilot");
+        host.PublishCharacterUpdated(76561198000000001UL, "Alex", id, "Avery", "A veteran pilot");
+        host.PublishCharacterDeleted(76561198000000001UL, "Alex", id, "Avery", "A veteran pilot");
+
+        Assert.Contains(logs, message => message.Contains("created:Alex:Avery"));
+        Assert.Contains(logs, message => message.Contains("selected:" + id.ToString("D")));
+        Assert.Contains(logs, message => message.Contains("updated:A veteran pilot"));
+        Assert.Contains(logs, message => message.Contains("deleted:Avery"));
+    }
+
+    [Fact]
     public void Load_RejectsDuplicateCommandsAcrossModules()
     {
         using var host = new LuaScriptHost(new PermissionService(), (_, _) => { }, _ => { });
