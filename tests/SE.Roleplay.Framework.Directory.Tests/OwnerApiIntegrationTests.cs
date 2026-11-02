@@ -74,6 +74,66 @@ public sealed class OwnerApiIntegrationTests
     }
 
     [Fact]
+    public async Task LauncherBearerOwnerApi_ManagesAllowlistOnlyForOwningSteamAccount()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var ownerA = factory.CreateBearerOwnerClient(OwnerA);
+        using var ownerB = factory.CreateBearerOwnerClient(OwnerB);
+
+        using var createResponse = await ownerA.PostAsJsonAsync(
+            "/api/launcher/owner/servers", Registration("Allowlist-owned server"));
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var serverId = created.RootElement.GetProperty("id").GetString()!;
+
+        using var initialSetting = await ownerA.GetAsync(
+            $"/api/launcher/owner/servers/{serverId}/admission");
+        Assert.Equal(HttpStatusCode.OK, initialSetting.StatusCode);
+        using var initialJson = JsonDocument.Parse(await initialSetting.Content.ReadAsStringAsync());
+        Assert.False(initialJson.RootElement.GetProperty("allowlistEnabled").GetBoolean());
+
+        using var rejectedSetting = await ownerB.GetAsync(
+            $"/api/launcher/owner/servers/{serverId}/admission");
+        Assert.Equal(HttpStatusCode.NotFound, rejectedSetting.StatusCode);
+
+        using var rejectedAdd = await ownerB.PostAsJsonAsync(
+            $"/api/launcher/owner/servers/{serverId}/members",
+            new { steamId64 = "76561198011111111", note = "unauthorized" });
+        Assert.Equal(HttpStatusCode.NotFound, rejectedAdd.StatusCode);
+
+        using var add = await ownerA.PostAsJsonAsync(
+            $"/api/launcher/owner/servers/{serverId}/members",
+            new { steamId64 = "76561198022222222", note = "community member" });
+        Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+
+        using var membersResponse = await ownerA.GetAsync(
+            $"/api/launcher/owner/servers/{serverId}/members");
+        Assert.Equal(HttpStatusCode.OK, membersResponse.StatusCode);
+        using var membersJson = JsonDocument.Parse(await membersResponse.Content.ReadAsStringAsync());
+        var member = Assert.Single(membersJson.RootElement.GetProperty("members").EnumerateArray());
+        Assert.Equal("76561198022222222", member.GetProperty("steamId64").GetString());
+        Assert.Equal("community member", member.GetProperty("note").GetString());
+
+        using var enable = await ownerA.PutAsJsonAsync(
+            $"/api/launcher/owner/servers/{serverId}/admission",
+            new { allowlistEnabled = true });
+        Assert.Equal(HttpStatusCode.NoContent, enable.StatusCode);
+
+        using var enabledSetting = await ownerA.GetAsync(
+            $"/api/launcher/owner/servers/{serverId}/admission");
+        using var enabledJson = JsonDocument.Parse(await enabledSetting.Content.ReadAsStringAsync());
+        Assert.True(enabledJson.RootElement.GetProperty("allowlistEnabled").GetBoolean());
+
+        using var rejectedRemove = await ownerB.DeleteAsync(
+            $"/api/launcher/owner/servers/{serverId}/members/76561198022222222");
+        Assert.Equal(HttpStatusCode.NotFound, rejectedRemove.StatusCode);
+
+        using var remove = await ownerA.DeleteAsync(
+            $"/api/launcher/owner/servers/{serverId}/members/76561198022222222");
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+    }
+
+    [Fact]
     public async Task LauncherBearerOwnerApi_RejectsMissingBearerToken()
     {
         using var factory = new DirectoryApiFactory();
