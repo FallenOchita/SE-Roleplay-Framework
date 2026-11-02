@@ -1,0 +1,61 @@
+name: SE1 Torch integration validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/SE.Roleplay.Framework.Torch/**"
+      - "src/SE.Roleplay.Framework.Core/**"
+      - "tests/**"
+      - ".github/workflows/build-se1-torch.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/SE.Roleplay.Framework.Torch/**"
+      - "src/SE.Roleplay.Framework.Core/**"
+      - "tests/**"
+      - ".github/workflows/build-se1-torch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-validation:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build shared core
+        run: dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
+
+      - name: Run core tests
+        run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --logger "console;verbosity=normal"
+
+      - name: Validate Torch adapter project configuration
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content "src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj"
+          $required = @("Torch", "Torch.API", "Torch.Server", "NLog", "Sandbox.Common", "VRage.Game", "VRage.Library")
+          $references = @($project.Project.ItemGroup.Reference | ForEach-Object { $_.Include })
+          $missing = $required | Where-Object { $_ -notin $references }
+          if ($missing) {
+            throw "Torch adapter project is missing expected assembly references: $($missing -join ', ')"
+          }
+          $handler = Get-Content "src/SE.Roleplay.Framework.Torch/Commands/AdminPanelNetworkHandler.cs" -Raw
+          if ($handler -notmatch "InvokeOnGameThread") {
+            throw "Admin panel response dispatch is not routed through InvokeOnGameThread."
+          }
+          Write-Host "Torch adapter references and admin-panel dispatch configuration are present."
+
+      - name: Explain proprietary assembly limitation
+        shell: pwsh
+        run: |
+          Write-Host "The GitHub-hosted runner does not include Space Engineers 1 or Torch assemblies."
+          Write-Host "A real Torch adapter compile and in-game test still require a machine with SE1 and Torch installed."
