@@ -35,8 +35,8 @@ public sealed class GameInstallDetector
                 foreach (Match match in LibraryPathPattern.Matches(contents))
                 {
                     var libraryPath = match.Groups[1].Value
-                        .Replace("\\\\", "\\", StringComparison.Ordinal)
-                        .Replace("\\\"", "\"", StringComparison.Ordinal);
+                        .Replace(@"\\\\", @"\\", StringComparison.Ordinal)
+                        
                     if (string.IsNullOrWhiteSpace(libraryPath))
                         continue;
 
