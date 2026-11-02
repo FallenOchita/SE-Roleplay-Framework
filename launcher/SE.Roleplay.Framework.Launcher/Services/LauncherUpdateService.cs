@@ -31,6 +31,9 @@ public sealed class LauncherUpdateService
             if (root.TryGetProperty("prerelease", out var prerelease) && !prerelease.GetBoolean())
                 return false;
 
+            if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+                return false;
+
             var manifestUrl = FindAssetUrl(assets, "launcher-update.json");
             if (manifestUrl is null)
                 return false;
@@ -40,10 +43,21 @@ public sealed class LauncherUpdateService
                 ? commit.GetString() ?? string.Empty : string.Empty;
             var installedCommit = GetInstalledCommit();
             if (string.IsNullOrWhiteSpace(latestCommit) ||
+                installedCommit.Length != 40 ||
+                !installedCommit.All(Uri.IsHexDigit) ||
                 string.Equals(latestCommit, installedCommit, StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+            // Only offer a build that is ahead of the installed commit; never downgrade a newer local build.
+            var compareUrl = "https://api.github.com/repos/FallenOchita/SE-Roleplay-Framework/compare/" +
+                             Uri.EscapeDataString(installedCommit) + "..." + Uri.EscapeDataString(latestCommit);
+            using var compareResponse = await Client.GetAsync(compareUrl);
+            if (!compareResponse.IsSuccessStatusCode)
+                return false;
+            using var comparison = JsonDocument.Parse(await compareResponse.Content.ReadAsStringAsync());
+            var compareStatus = comparison.RootElement.TryGetProperty("status", out var status)
+                ? status.GetString() : null;
+            if (!string.Equals(compareStatus, "ahead", StringComparison.OrdinalIgnoreCase))
                 return false;
 
             var installerUrl = FindAssetUrl(assets, InstallerName);
