@@ -23,6 +23,10 @@
       <HintPath>$(TorchLibPath)\Torch.API.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Torch.Server">
+      <HintPath>$(TorchLibPath)\Torch.Server.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="NLog">
       <HintPath>$(TorchLibPath)\NLog.dll</HintPath>
       <Private>False</Private>
@@ -48,6 +52,7 @@
     <Error Condition="'$(GameBinariesPath)' == ''" Text="Set GameBinariesPath to the Space Engineers DedicatedServer64 folder." />
     <Error Condition="!Exists('$(TorchLibPath)\Torch.dll')" Text="Torch.dll was not found under TorchLibPath." />
     <Error Condition="!Exists('$(TorchLibPath)\Torch.API.dll')" Text="Torch.API.dll was not found under TorchLibPath." />
+    <Error Condition="!Exists('$(TorchLibPath)\Torch.Server.dll')" Text="Torch.Server.dll was not found under TorchLibPath. It is required for SE1 pre-admission events." />
     <Error Condition="!Exists('$(TorchLibPath)\NLog.dll')" Text="NLog.dll was not found under TorchLibPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
   </Target>
