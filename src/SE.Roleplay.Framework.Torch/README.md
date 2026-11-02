@@ -118,3 +118,25 @@ When the world is loaded, the plugin sends an immediate authenticated heartbeat 
 For safety, the adapter requires HTTPS and never logs the API key. Set the variables in the environment of the Torch process, not in a public launcher configuration or a committed file.
 
 **Player-count limitation:** the adapter counts join/leave events observed after it attaches to the session. If the plugin is loaded or reloaded while players are already connected, that initial count may be temporarily lower until those players reconnect. Verify the count against your exact Torch build during server smoke testing.
+
+## Server allowlist administration
+
+Allowlist management is a server feature, not a launcher feature. Configure the same server-only environment values used by admission enforcement:
+
+- `SERPF_DIRECTORY_URL` — HTTPS directory base URL.
+- `SERPF_SERVER_ID` — this registered server's ID.
+- `SERPF_SERVER_API_KEY` — this server's private API key.
+
+The Torch adapter exposes admin-only allowlist commands in both the Torch server console and in-game admin chat. In-game, run `!rp admin allowlist menu` to display the command menu.
+
+| Command | Action |
+| --- | --- |
+| `!rp admin allowlist menu` | Displays status and available actions in chat. |
+| `!rp admin allowlist status` | Shows enforcement state and member count. |
+| `!rp admin allowlist list` | Lists SteamID64 members. |
+| `!rp admin allowlist add <SteamID64> [note]` | Adds a member; quote notes containing spaces. |
+| `!rp admin allowlist remove <SteamID64>` | Removes a member. |
+| `!rp admin allowlist enable` | Enables pre-admission allowlist enforcement. |
+| `!rp admin allowlist disable` | Disables enforcement but keeps the list. |
+
+Commands require Torch's Admin promote level. All operations are scoped to the server identified by the server API key. The key stays in the Torch process and is never placed in launcher settings. Admission remains enforced at Torch's pre-connection authentication hook.
