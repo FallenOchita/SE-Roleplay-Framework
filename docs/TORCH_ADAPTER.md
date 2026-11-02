@@ -44,3 +44,9 @@ The Torch adapter supports the directory API using process environment variables
 - `SERPF_SERVER_VERSION` — optional version label (default SE1).
 
 It sends an immediate heartbeat and then one every 30 seconds while the world is loaded. Player counts are maintained from Torch join/leave events. No API key is stored in the launcher or repository. See the Torch adapter README for setup and the current-session tracking limitation.
+
+## Server-side allowlist management
+
+The Torch plugin exposes server-key-authenticated allowlist administration endpoints used only by the server process. Admins can manage membership and enforcement through Torch console commands or the in-game chat command menu. The desktop launcher does not manage allowlists or server members.
+
+See `src/SE.Roleplay.Framework.Torch/README.md` for the complete command list. All commands require Torch Admin permission, and all changes are scoped to the server's own API key.
