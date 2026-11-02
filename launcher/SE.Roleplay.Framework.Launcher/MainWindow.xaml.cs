@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
     private readonly ObservableCollection<ServerListing> _recentServers = new();
     private readonly ObservableCollection<ServerListing> _ownedServers = new();
+    private readonly ObservableCollection<ServerMemberDto> _serverMembers = new();
     private LauncherSettings _settings = new();
 
     public MainWindow()
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _launcherApi = new LauncherDirectoryApiClient(_directoryAuthorization);
         OwnedServersList.ItemsSource = _ownedServers;
+        ServerMembersList.ItemsSource = _serverMembers;
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
@@ -349,6 +351,118 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             OwnerStatusText.Text = $"Could not delete server listing: {ex.Message}";
+        }
+    }
+
+    private async void OwnedServersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            _serverMembers.Clear();
+            MembersStatusText.Text = "Select one of your servers to view its allowlist.";
+            AllowlistEnabledCheckBox.IsEnabled = false;
+            return;
+        }
+
+        await RefreshServerMembersAsync(server);
+    }
+
+    private async Task RefreshServerMembersAsync(ServerListing server)
+    {
+        _serverMembers.Clear();
+        MembersStatusText.Text = $"Loading allowlist for {server.Name}...";
+        AllowlistEnabledCheckBox.IsEnabled = false;
+        try
+        {
+            var members = await _launcherApi.GetServerMembersAsync(_settings.ServerDirectoryUrl, server.Id);
+            foreach (var member in members) _serverMembers.Add(member);
+            var enabled = await _launcherApi.GetAllowlistEnabledAsync(_settings.ServerDirectoryUrl, server.Id);
+            AllowlistEnabledCheckBox.IsChecked = enabled;
+            AllowlistEnabledCheckBox.IsEnabled = true;
+            MembersStatusText.Text = enabled
+                ? $"Allowlist enforcement is ON. {members.Count} member(s) are listed."
+                : $"Allowlist enforcement is OFF. {members.Count} member(s) are listed; joining is not restricted by this list.";
+        }
+        catch (Exception ex)
+        {
+            MembersStatusText.Text = $"Could not load members or enforcement settings: {ex.Message}";
+        }
+    }
+
+    private async void AddServerMember_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            MembersStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+
+        var steamId = MemberSteamIdBox.Text.Trim();
+        if (steamId.Length != 17 || !steamId.All(char.IsAsciiDigit))
+        {
+            MembersStatusText.Text = "Enter a valid 17-digit SteamID64.";
+            return;
+        }
+
+        try
+        {
+            await _launcherApi.AddServerMemberAsync(
+                _settings.ServerDirectoryUrl, server.Id, steamId, MemberNoteBox.Text.Trim());
+            MemberSteamIdBox.Clear();
+            MemberNoteBox.Clear();
+            await RefreshServerMembersAsync(server);
+            MembersStatusText.Text = $"Steam account {steamId} was added to {server.Name}'s allowlist.";
+        }
+        catch (Exception ex)
+        {
+            MembersStatusText.Text = $"Could not add member: {ex.Message}";
+        }
+    }
+
+    private async void RemoveServerMember_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server ||
+            ServerMembersList.SelectedItem is not ServerMemberDto member)
+        {
+            MembersStatusText.Text = "Select a server and a member first.";
+            return;
+        }
+
+        if (MessageBox.Show($"Remove Steam account {member.SteamId64} from {server.Name}'s allowlist?",
+            "Remove allowlist member", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            await _launcherApi.RemoveServerMemberAsync(_settings.ServerDirectoryUrl, server.Id, member.SteamId64);
+            await RefreshServerMembersAsync(server);
+            MembersStatusText.Text = $"Steam account {member.SteamId64} was removed.";
+        }
+        catch (Exception ex)
+        {
+            MembersStatusText.Text = $"Could not remove member: {ex.Message}";
+        }
+    }
+
+    private async void SaveAllowlistSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            MembersStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+
+        try
+        {
+            var enabled = AllowlistEnabledCheckBox.IsChecked == true;
+            await _launcherApi.SetAllowlistEnabledAsync(_settings.ServerDirectoryUrl, server.Id, enabled);
+            MembersStatusText.Text = enabled
+                ? "Allowlist enforcement enabled. Only listed members will pass the directory admission check."
+                : "Allowlist enforcement disabled. The member list is retained but is not enforced.";
+        }
+        catch (Exception ex)
+        {
+            MembersStatusText.Text = $"Could not save allowlist settings: {ex.Message}";
         }
     }
 
