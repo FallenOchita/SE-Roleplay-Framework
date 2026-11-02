@@ -48,6 +48,7 @@ namespace SE.Roleplay.Framework.Torch
         private string _directoryServerVersion = "SE1";
         private IEventManager? _eventManager;
         private TorchAdmissionEventHandler? _admissionHandler;
+        private LuaScriptHost? _luaScriptHost;
 
         public override void Init(ITorchBase torch)
         {
@@ -184,7 +185,7 @@ namespace SE.Roleplay.Framework.Torch
 
             _onlinePlayers.TryRemove(player.SteamId, out _);
             _playerOperations.TryGetValue(player.SteamId, out var pendingConnect);
-            var disconnect = Task.Run(() => DisconnectPlayerAsync(player.SteamId, pendingConnect));
+            var disconnect = Task.Run(() => DisconnectPlayerAsync(player.SteamId, player.Name, pendingConnect));
             _playerOperations[player.SteamId] = disconnect;
 
             _ = disconnect.ContinueWith(
@@ -228,6 +229,12 @@ namespace SE.Roleplay.Framework.Torch
             }
 
             var scriptDirectory = Path.Combine(options.DataDirectory, "Scripts");
+            _luaScriptHost = new LuaScriptHost(
+                _context!.Permissions,
+                (platformId, message) => _context?.Logger.Info("[Lua reply to " + platformId + "] " + message),
+                message => _context?.Logger.Info(message));
+            LuaCommandModule.Host = _luaScriptHost;
+
             _ = Task.Run(() =>
             {
                 try
@@ -243,8 +250,13 @@ namespace SE.Roleplay.Framework.Torch
                         return;
                     }
 
-                    var runtime = new LuaScriptRuntime();
-                    var hostContext = new LuaScriptContext(options.ServerName, message => _context?.Logger.Info("[Lua] " + message));
+                    var host = _luaScriptHost;
+                    if (host == null)
+                    {
+                        _context?.Logger.Warn("Lua scripts were enabled but the RP scripting host is unavailable.");
+                        return;
+                    }
+
                     foreach (var path in scriptFiles)
                     {
                         try
@@ -256,7 +268,7 @@ namespace SE.Roleplay.Framework.Torch
                                 continue;
                             }
 
-                            var result = runtime.Execute(info.Name, File.ReadAllText(path), hostContext);
+                            var result = host.Load(info.Name, File.ReadAllText(path), options.ServerName);
                             if (result.Succeeded)
                                 _context?.Logger.Info("Loaded Lua startup script " + info.Name + ".");
                             else
@@ -434,6 +446,7 @@ namespace SE.Roleplay.Framework.Torch
                 foreach (var permission in profile.Permissions)
                     _context.Permissions.Grant(steamId, permission);
                 _context.Logger.Info("Loaded profile and " + profile.Permissions.Count + " permission grant(s) for " + playerName + " (" + steamId + ").");
+                _luaScriptHost?.PublishPlayerJoined(steamId, playerName);
             }
             catch (Exception exception)
             {
@@ -441,7 +454,7 @@ namespace SE.Roleplay.Framework.Torch
             }
         }
 
-        private async Task DisconnectPlayerAsync(ulong steamId, Task? pendingConnect)
+        private async Task DisconnectPlayerAsync(ulong steamId, string playerName, Task? pendingConnect)
         {
             try
             {
@@ -452,6 +465,7 @@ namespace SE.Roleplay.Framework.Torch
                 {
                     await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
                     _context.Logger.Info("Saved and unloaded profile for Steam account " + steamId + ".");
+                    _luaScriptHost?.PublishPlayerLeft(steamId, playerName);
                 }
                 finally
                 {
@@ -528,6 +542,9 @@ namespace SE.Roleplay.Framework.Torch
 
             CharacterCommandModule.Framework = null;
             PlayerPermissionCommandModule.Framework = null;
+            LuaCommandModule.Host = null;
+            _luaScriptHost?.Dispose();
+            _luaScriptHost = null;
             ServerMembershipCommandModule.Shutdown();
             _context?.Logger.Info("Torch adapter stopped.");
             base.Dispose();
