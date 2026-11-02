@@ -1,46 +1,61 @@
-name: Build SE1 Torch adapter
+name: SE1 Torch integration validation
 
 on:
-  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
       - "src/SE.Roleplay.Framework.Torch/**"
       - "src/SE.Roleplay.Framework.Core/**"
+      - "tests/**"
       - ".github/workflows/build-se1-torch.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/SE.Roleplay.Framework.Torch/**"
+      - "src/SE.Roleplay.Framework.Core/**"
+      - "tests/**"
+      - ".github/workflows/build-se1-torch.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-se1-torch:
-    # This runner must have the SE1 DedicatedServer64 binaries and Torch libraries installed.
-    # Configure TORCH_LIB_PATH and TORCH_GAME_BINARIES_PATH as runner environment variables.
-    runs-on: [self-hosted, windows, se1-torch]
+  hosted-validation:
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup .NET Framework build tools
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
 
-      - name: Validate SE1 and Torch reference paths
+      - name: Build shared core
+        run: dotnet build src/SE.Roleplay.Framework.Core/SE.Roleplay.Framework.Core.csproj --configuration Release
+
+      - name: Run core tests
+        run: dotnet test tests/SE.Roleplay.Framework.Core.Tests/SE.Roleplay.Framework.Core.Tests.csproj --configuration Release --logger "console;verbosity=normal"
+
+      - name: Validate Torch adapter project configuration
         shell: pwsh
         run: |
-          if (-not $env:TORCH_LIB_PATH) { throw "TORCH_LIB_PATH is not configured on this runner." }
-          if (-not $env:TORCH_GAME_BINARIES_PATH) { throw "TORCH_GAME_BINARIES_PATH is not configured on this runner." }
-          $required = @(
-            "$env:TORCH_LIB_PATH\Torch.dll",
-            "$env:TORCH_LIB_PATH\Torch.API.dll",
-            "$env:TORCH_LIB_PATH\Torch.Server.dll",
-            "$env:TORCH_LIB_PATH\NLog.dll",
-            "$env:TORCH_GAME_BINARIES_PATH\Sandbox.Common.dll",
-            "$env:TORCH_GAME_BINARIES_PATH\VRage.Game.dll"
-          )
-          $missing = $required | Where-Object { -not (Test-Path $_) }
-          if ($missing) { $missing | ForEach-Object { Write-Error "Missing dependency: $_" }; exit 1 }
+          [xml]$project = Get-Content "src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj"
+          $required = @("Torch", "Torch.API", "Torch.Server", "NLog", "Sandbox.Common", "VRage.Game", "VRage.Library")
+          $references = @($project.Project.ItemGroup.Reference | ForEach-Object { $_.Include })
+          $missing = $required | Where-Object { $_ -notin $references }
+          if ($missing) {
+            throw "Torch adapter project is missing expected assembly references: $($missing -join ', ')"
+          }
+          $handler = Get-Content "src/SE.Roleplay.Framework.Torch/Commands/AdminPanelNetworkHandler.cs" -Raw
+          if ($handler -notmatch "InvokeOnGameThread") {
+            throw "Admin panel response dispatch is not routed through InvokeOnGameThread."
+          }
+          Write-Host "Torch adapter references and admin-panel dispatch configuration are present."
 
-      - name: Build SE1 Torch adapter
+      - name: Explain proprietary assembly limitation
         shell: pwsh
         run: |
-          msbuild src/SE.Roleplay.Framework.Torch/SE.Roleplay.Framework.Torch.csproj /restore /p:Configuration=Release /p:TorchLibPath="$env:TORCH_LIB_PATH" /p:GameBinariesPath="$env:TORCH_GAME_BINARIES_PATH" /verbosity:minimal
+          Write-Host "The GitHub-hosted runner does not include Space Engineers 1 or Torch assemblies."
+          Write-Host "A real Torch adapter compile and in-game test still require a machine with SE1 and Torch installed."
