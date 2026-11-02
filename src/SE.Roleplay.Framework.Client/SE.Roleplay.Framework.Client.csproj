@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SE.Roleplay.Framework.Client</AssemblyName>
+    <RootNamespace>SE.Roleplay.Framework.Client</RootNamespace>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <GameBinariesPath Condition="'$(GameBinariesPath)' == ''">$(SE1_GAME_BINARIES_PATH)</GameBinariesPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Sandbox.Common">
+      <HintPath>$(GameBinariesPath)\Sandbox.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sandbox.Graphics">
+      <HintPath>$(GameBinariesPath)\Sandbox.Graphics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRage.Game">
+      <HintPath>$(GameBinariesPath)\VRage.Game.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRage.Library">
+      <HintPath>$(GameBinariesPath)\VRage.Library.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRage.Math">
+      <HintPath>$(GameBinariesPath)\VRage.Math.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="ValidateGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(GameBinariesPath)' == ''" Text="Set GameBinariesPath to the Space Engineers 1 Bin64 folder." />
+    <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Common.dll')" Text="Sandbox.Common.dll was not found under GameBinariesPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Graphics.dll')" Text="Sandbox.Graphics.dll was not found under GameBinariesPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
+  </Target>
+</Project>
