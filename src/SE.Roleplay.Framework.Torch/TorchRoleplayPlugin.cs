@@ -13,6 +13,7 @@ using SE.Roleplay.Framework.Core.Identity;
 using SE.Roleplay.Framework.Core.Permissions;
 using SE.Roleplay.Framework.Core.Persistence;
 using SE.Roleplay.Framework.Torch.Commands;
+using SE.Roleplay.Framework.Scripting;
 using Sandbox.ModAPI;
 using Newtonsoft.Json;
 using Torch;
@@ -95,6 +96,7 @@ namespace SE.Roleplay.Framework.Torch
             _sessionManager.SessionStateChanged += OnSessionStateChanged;
             _nextAutosaveUtc = DateTime.UtcNow.AddSeconds(options.AutosaveIntervalSeconds);
             ConfigureDirectoryHeartbeat();
+            ConfigureLuaScripts(options);
             ServerMembershipCommandModule.Configure();
             ConfigureAdmissionEnforcement(torch);
 
@@ -216,6 +218,63 @@ namespace SE.Roleplay.Framework.Torch
             return defaultLimit;
         }
 
+        private void ConfigureLuaScripts(FrameworkOptions options)
+        {
+            var enabled = string.Equals(Environment.GetEnvironmentVariable("SERPF_ENABLE_LUA_SCRIPTS"), "true", StringComparison.OrdinalIgnoreCase);
+            if (!enabled)
+            {
+                _context?.Logger.Info("Lua script loading is disabled. Set SERPF_ENABLE_LUA_SCRIPTS=true to enable trusted server scripts.");
+                return;
+            }
+
+            var scriptDirectory = Path.Combine(options.DataDirectory, "Scripts");
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(scriptDirectory);
+                    var scriptFiles = Directory.GetFiles(scriptDirectory, "*.lua", SearchOption.TopDirectoryOnly)
+                        .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                        .Take(51)
+                        .ToArray();
+                    if (scriptFiles.Length > 50)
+                    {
+                        _context?.Logger.Warn("Lua script loading stopped: the Scripts folder may contain no more than 50 top-level .lua files.");
+                        return;
+                    }
+
+                    var runtime = new LuaScriptRuntime();
+                    var hostContext = new LuaScriptContext(options.ServerName, message => _context?.Logger.Info("[Lua] " + message));
+                    foreach (var path in scriptFiles)
+                    {
+                        try
+                        {
+                            var info = new FileInfo(path);
+                            if (info.Length > LuaScriptRuntime.DefaultMaximumSourceLength)
+                            {
+                                _context?.Logger.Warn("Skipped Lua script larger than 64 KiB: " + info.Name);
+                                continue;
+                            }
+
+                            var result = runtime.Execute(info.Name, File.ReadAllText(path), hostContext);
+                            if (result.Succeeded)
+                                _context?.Logger.Info("Loaded Lua startup script " + info.Name + ".");
+                            else
+                                _context?.Logger.Warn("Lua script " + info.Name + " failed: " + result.Error);
+                        }
+                        catch (Exception exception)
+                        {
+                            _context?.Logger.Warn("Could not load Lua script " + Path.GetFileName(path) + ": " + exception.Message);
+                        }
+                    }
+                    _context?.Logger.Info("Lua startup script scan completed for " + scriptFiles.Length + " file(s) in " + scriptDirectory + ".");
+                }
+                catch (Exception exception)
+                {
+                    _context?.Logger.Error("Lua script directory could not be loaded.", exception);
+                }
+            });
+        }
         private void ConfigureDirectoryHeartbeat()
         {
             var directoryUrl = Environment.GetEnvironmentVariable("SERPF_DIRECTORY_URL");
