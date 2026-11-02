@@ -11,6 +11,7 @@ Windows WPF launcher for the Space Engineers 1 Roleplay Framework. The launcher 
 - Steam OpenID sign-in through the system browser; the launcher does not collect Steam passwords.
 - Optional connection to a configured HTTPS community directory.
 - Server browsing, text search, online/offline/favorites filters, server details, and locally saved favorites.
+- The launcher opens directly to Browse Servers. Players choose a community first; selecting Join hands the connection to Steam, which starts Space Engineers if needed and connects to that server. The launcher remains available as the community hub.
 - Steam `steam://connect/` join handoff and a local list of recently joined servers.
 - Directory account profile editing (display name and biography).
 - Server-owner tools for registering, editing/managing owned listings, rotating server API keys, and managing per-server allowlist membership and policy.
