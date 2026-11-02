@@ -348,8 +348,11 @@ namespace SE.Roleplay.Framework.Torch
                 if (previousOperation != null)
                     await previousOperation.ConfigureAwait(false);
 
-                await _context!.Sessions.ConnectAsync(steamId, playerName).ConfigureAwait(false);
-                _context.Logger.Info("Loaded profile for " + playerName + " (" + steamId + ").");
+                var profile = await _context!.Sessions.ConnectAsync(steamId, playerName).ConfigureAwait(false);
+                _context.Permissions.Clear(steamId);
+                foreach (var permission in profile.Permissions)
+                    _context.Permissions.Grant(steamId, permission);
+                _context.Logger.Info("Loaded profile and " + profile.Permissions.Count + " permission grant(s) for " + playerName + " (" + steamId + ").");
             }
             catch (Exception exception)
             {
@@ -364,8 +367,16 @@ namespace SE.Roleplay.Framework.Torch
                 if (pendingConnect != null)
                     await pendingConnect.ConfigureAwait(false);
 
-                await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
-                _context.Logger.Info("Saved and unloaded profile for Steam account " + steamId + ".");
+                try
+                {
+                    await _context!.Sessions.DisconnectAsync(steamId).ConfigureAwait(false);
+                    _context.Logger.Info("Saved and unloaded profile for Steam account " + steamId + ".");
+                }
+                finally
+                {
+                    // Always clear transient grants, even if profile persistence reports an error.
+                    _context!.Permissions.Clear(steamId);
+                }
             }
             catch (Exception exception)
             {

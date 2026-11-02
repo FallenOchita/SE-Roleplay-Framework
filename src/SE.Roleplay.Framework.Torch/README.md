@@ -47,7 +47,7 @@ Server administrators can manage saved profile permissions with the `!rp admin p
 | `!rp admin permissions revoke <SteamID64> <permission>` | Revokes a permission and saves the profile. |
 | `!rp admin permissions check <SteamID64> <permission>` | Checks a saved grant, including the `*` wildcard. |
 
-These commands require Torch's Admin promote level. The target player must be online with a loaded profile; profile operations intentionally do not create or edit offline accounts. Permission names are case-insensitive and may not contain whitespace. The profile service is the persistence authority; these commands do not silently mutate the separate in-memory `IPermissionService` cache.
+These commands require Torch's Admin promote level. The target player must be online with a loaded profile; profile operations intentionally do not create or edit offline accounts. Permission names are case-insensitive and may not contain whitespace. Grants are persisted to the player profile and immediately synchronized to the runtime `IPermissionService`; they are restored when the player reconnects and cleared when the player disconnects.
 
 ## Build requirements
 
