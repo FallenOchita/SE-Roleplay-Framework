@@ -90,7 +90,7 @@ namespace SE.Roleplay.Framework.Torch
             _context.Logger.Info("Maximum characters per player: " + options.MaximumCharactersPerPlayer + ".");
             CharacterCommandModule.Framework = _context;
             PlayerPermissionCommandModule.Framework = _context;
-            ChatModerationCommandModule.Configure(Path.Combine(options.DataDirectory, "ChatModeration.json"));
+            ChatModerationCommandModule.Configure(Path.Combine(options.DataDirectory, "ChatModeration.json"), message => _context.Logger.Warn(message));
 
             _sessionManager = torch.Managers.GetManager<ITorchSessionManager>();
             if (_sessionManager == null)
