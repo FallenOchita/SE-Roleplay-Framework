@@ -6,6 +6,8 @@ Windows WPF launcher for the Space Engineers 1 Roleplay Framework. The launcher 
 
 - Windows 10/11 x64 desktop application.
 - Starts Space Engineers through Steam (App ID `244850`).
+- Automatically detects Space Engineers installations in the default Steam folder and additional Steam libraries listed in `libraryfolders.vdf`; saves the detected executable path and reports the installation in the launcher status.
+- Settings includes a manual re-detection action and handles multiple detected installations without silently overwriting the saved path.
 - Steam OpenID sign-in through the system browser; the launcher does not collect Steam passwords.
 - Optional connection to a configured HTTPS community directory.
 - Server browsing, text search, online/offline/favorites filters, server details, and locally saved favorites.
