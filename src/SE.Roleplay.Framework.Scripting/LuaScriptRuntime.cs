@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using MoonSharp.Interpreter;
+using MoonSharp.Interpreter.Debugging;
 
 namespace SE.Roleplay.Framework.Scripting
 {
@@ -7,12 +10,18 @@ namespace SE.Roleplay.Framework.Scripting
     public sealed class LuaScriptRuntime
     {
         public const int DefaultMaximumSourceLength = 64 * 1024;
+        public const int DefaultMaximumInstructionCount = 100_000;
         private readonly int _maximumSourceLength;
+        private readonly int _maximumInstructionCount;
 
-        public LuaScriptRuntime(int maximumSourceLength = DefaultMaximumSourceLength)
+        public LuaScriptRuntime(
+            int maximumSourceLength = DefaultMaximumSourceLength,
+            int maximumInstructionCount = DefaultMaximumInstructionCount)
         {
             if (maximumSourceLength < 1) throw new ArgumentOutOfRangeException(nameof(maximumSourceLength));
+            if (maximumInstructionCount < 1) throw new ArgumentOutOfRangeException(nameof(maximumInstructionCount));
             _maximumSourceLength = maximumSourceLength;
+            _maximumInstructionCount = maximumInstructionCount;
         }
 
         public LuaExecutionResult Execute(string scriptName, string source) => Execute(scriptName, source, null);
@@ -25,6 +34,8 @@ namespace SE.Roleplay.Framework.Scripting
             try
             {
                 var script = new Script(CoreModules.Preset_SoftSandbox);
+                var budget = new InstructionBudgetDebugger(_maximumInstructionCount);
+                script.AttachDebugger(budget);
                 if (context != null)
                 {
                     var rp = new Table(script);
@@ -35,9 +46,61 @@ namespace SE.Roleplay.Framework.Scripting
                 var result = script.DoString(source);
                 return LuaExecutionResult.Success(scriptName, result.ToPrintString());
             }
+            catch (LuaInstructionLimitExceededException exception)
+            {
+                return LuaExecutionResult.Failure(scriptName, exception.Message);
+            }
             catch (SyntaxErrorException exception) { return LuaExecutionResult.Failure(scriptName, "Lua syntax error: " + exception.DecoratedMessage); }
             catch (ScriptRuntimeException exception) { return LuaExecutionResult.Failure(scriptName, "Lua runtime error: " + exception.DecoratedMessage); }
             catch (Exception exception) { return LuaExecutionResult.Failure(scriptName, "Lua execution failed: " + exception.Message); }
+        }
+
+        /// <summary>
+        /// MoonSharp calls IsPauseRequested once for each VM instruction when a debugger is attached.
+        /// Throwing from GetAction stops the VM synchronously instead of abandoning a worker thread.
+        /// </summary>
+        private sealed class InstructionBudgetDebugger : IDebugger
+        {
+            private readonly int _maximumInstructions;
+            private int _instructionCount;
+            private int _budgetExceeded;
+
+            public InstructionBudgetDebugger(int maximumInstructions) => _maximumInstructions = maximumInstructions;
+
+            public DebuggerCaps GetDebuggerCaps() => (DebuggerCaps)0;
+            public void SetDebugService(DebugService debugService) { }
+            public void SetSourceCode(SourceCode sourceCode) { }
+            public void SetByteCode(string[] byteCode) { }
+
+            public bool IsPauseRequested()
+            {
+                if (Interlocked.Increment(ref _instructionCount) <= _maximumInstructions)
+                    return false;
+
+                Interlocked.Exchange(ref _budgetExceeded, 1);
+                return true;
+            }
+
+            public bool SignalRuntimeException(ScriptRuntimeException exception) => false;
+
+            public DebuggerAction GetAction(int instructionPointer, SourceRef sourceReference)
+            {
+                if (Volatile.Read(ref _budgetExceeded) != 0)
+                    throw new LuaInstructionLimitExceededException(_maximumInstructions);
+
+                return new DebuggerAction { Action = DebuggerAction.ActionType.Run };
+            }
+
+            public void SignalExecutionEnded() { }
+            public void Update(WatchType watchType, IEnumerable<WatchItem> items) { }
+            public List<DynamicExpression> GetWatchItems() => new List<DynamicExpression>();
+            public void RefreshBreakpoints(IEnumerable<SourceRef> references) { }
+        }
+
+        private sealed class LuaInstructionLimitExceededException : Exception
+        {
+            public LuaInstructionLimitExceededException(int maximumInstructions)
+                : base("Lua instruction limit exceeded (" + maximumInstructions + " VM instructions).") { }
         }
     }
 

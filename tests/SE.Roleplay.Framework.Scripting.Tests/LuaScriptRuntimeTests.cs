@@ -22,6 +22,24 @@ public sealed class LuaScriptRuntimeTests
         var runtime = new LuaScriptRuntime(maximumSourceLength: 4);
         Assert.Throws<System.ArgumentException>(() => runtime.Execute("large.lua", "return 1"));
     }
+    [Fact] public void Execute_RejectsNonPositiveInstructionBudget()
+    {
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => new LuaScriptRuntime(maximumInstructionCount: 0));
+    }
+    [Fact] public void Execute_StopsInfiniteLoopsAtInstructionBudget()
+    {
+        var runtime = new LuaScriptRuntime(maximumInstructionCount: 500);
+        var result = runtime.Execute("loop.lua", "while true do end");
+        Assert.False(result.Succeeded);
+        Assert.Contains("Lua instruction limit exceeded (500 VM instructions)", result.Error);
+    }
+    [Fact] public void Execute_AllowsScriptsWithinInstructionBudget()
+    {
+        var result = new LuaScriptRuntime(maximumInstructionCount: 500)
+            .Execute("small.lua", "local total = 0; for i = 1, 5 do total = total + i end; return total");
+        Assert.True(result.Succeeded);
+        Assert.Contains("15", result.Output);
+    }
     [Fact] public void Execute_UsesFreshEnvironmentForEachChunk()
     {
         var runtime = new LuaScriptRuntime(); runtime.Execute("first.lua", "shared_value = 'secret'");
