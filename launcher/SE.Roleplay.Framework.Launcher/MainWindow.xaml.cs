@@ -52,7 +52,13 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(GamePathBox.Text) || !File.Exists(GamePathBox.Text))
             {
                 var detected = _gameDetector.FindGameExecutable();
-                if (detected is not null) GamePathBox.Text = detected;
+                if (detected is not null)
+                {
+                    GamePathBox.Text = detected;
+                    _settings.GameExecutablePath = detected;
+                    await _settingsStore.SaveAsync(_settings);
+                    FrameworkStatusText.Text = "Space Engineers installation detected and saved.";
+                }
             }
 
             _settings.RecentlyLaunchedServers ??= new List<ServerListing>();
@@ -133,9 +139,14 @@ public partial class MainWindow : Window
 
     private void UpdateGameStatus()
     {
-        var path = GamePathBox.Text;
-        var found = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
-        GameStatusText.Text = found ? "Game installation detected · Steam launch enabled" : "Launch through your Steam client";
+        var path = GamePathBox.Text.Trim();
+        var found = !string.IsNullOrWhiteSpace(path) &&
+                    File.Exists(path) &&
+                    string.Equals(Path.GetFileName(path), "SpaceEngineers.exe", StringComparison.OrdinalIgnoreCase);
+
+        GameStatusText.Text = found
+            ? $"Game detected · {Path.GetDirectoryName(path)}"
+            : "Game not detected · Steam launch remains available";
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) =>
@@ -496,18 +507,43 @@ public partial class MainWindow : Window
         }
     }
 
-    private void DetectGame_Click(object sender, RoutedEventArgs e)
+    private async void DetectGame_Click(object sender, RoutedEventArgs e)
     {
-        var path = _gameDetector.FindGameExecutable();
-        if (path is null)
+        var installations = _gameDetector.FindGameInstallations();
+        if (installations.Count == 0)
         {
-            SettingsStatusText.Text = "Automatic detection did not find the default Steam library. Steam launch will still work when Steam is installed.";
+            SettingsStatusText.Text = "Space Engineers was not found. Check that Steam is installed and the game is installed in a Steam library.";
+            UpdateGameStatus();
             return;
         }
 
-        GamePathBox.Text = path;
-        UpdateGameStatus();
-        SettingsStatusText.Text = "Installation detected. Save settings to remember this path.";
+        var selectedPath = installations[0];
+        if (installations.Count > 1)
+        {
+            var choices = string.Join(Environment.NewLine, installations.Select((path, index) => $"{index + 1}. {path}"));
+            var prompt = $"Multiple Space Engineers installations were found:{Environment.NewLine}{Environment.NewLine}{choices}{Environment.NewLine}{Environment.NewLine}Use the first installation?";
+
+            if (MessageBox.Show(prompt, "Choose Space Engineers installation", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                SettingsStatusText.Text = "Detection completed. No installation was selected.";
+                return;
+            }
+        }
+
+        GamePathBox.Text = selectedPath;
+        _settings.GameExecutablePath = selectedPath;
+        try
+        {
+            await _settingsStore.SaveAsync(_settings);
+            UpdateGameStatus();
+            SettingsStatusText.Text = installations.Count == 1
+                ? "Space Engineers installation detected and saved."
+                : $"Selected and saved the first of {installations.Count} detected installations.";
+        }
+        catch (Exception ex)
+        {
+            SettingsStatusText.Text = $"Installation detected, but its path could not be saved: {ex.Message}";
+        }
     }
 
     private async void RefreshServers_Click(object sender, RoutedEventArgs e) =>
