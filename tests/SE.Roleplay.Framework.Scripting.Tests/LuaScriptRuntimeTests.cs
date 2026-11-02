@@ -40,9 +40,10 @@ public sealed class LuaScriptRuntimeTests
         var result = new LuaScriptRuntime().Execute("no-host.lua", "return rp.serverName");
         Assert.False(result.Succeeded); Assert.StartsWith("Lua runtime error:", result.Error);
     }
-    [Fact] public void Context_TruncatesOversizedLogMessages()
+    [Fact] public void Execute_TruncatesOversizedLogMessages()
     {
         string? logged = null; var context = new LuaScriptContext("Test Community", value => logged = value);
-        context.WriteLog(new string('x', 3000)); Assert.Equal(2048, logged?.Length);
+        var result = new LuaScriptRuntime().Execute("long-log.lua", "rp.log(string.rep('x', 3000))", context);
+        Assert.True(result.Succeeded); Assert.Equal(2048, logged?.Length);
     }
 }
