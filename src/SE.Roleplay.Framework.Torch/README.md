@@ -11,7 +11,7 @@ This project is the Space Engineers 1 dedicated-server host adapter. It keeps To
 - Saves and unloads the profile when Torch reports a player leaving.
 - Runs a five-minute profile autosave while the plugin is active.
 - Flushes outstanding player operations and online profiles during plugin disposal.
-- Registers in-game and Torch chat commands for per-server character management.
+- Registers in-game and Torch chat commands for per-server character and permission management.
 
 Player JSON files are stored under:
 
@@ -35,6 +35,19 @@ Players can manage their own characters through the server chat:
 | `!rp character delete 2` | Deletes the character at position 2 in the list. |
 
 Character positions are based on the current list order. Players can only operate on the profile associated with their own Steam account. The profile service enforces the server-configured five-character limit. Commands are registered through Torch's `CommandManager` when the plugin is loaded into a session.
+
+## Persistent player permissions
+
+Server administrators can manage saved profile permissions with the `!rp admin permissions` command category:
+
+| Command | Action |
+| --- | --- |
+| `!rp admin permissions list <SteamID64>` | Lists saved permission grants. |
+| `!rp admin permissions grant <SteamID64> <permission>` | Grants a permission and saves the profile. |
+| `!rp admin permissions revoke <SteamID64> <permission>` | Revokes a permission and saves the profile. |
+| `!rp admin permissions check <SteamID64> <permission>` | Checks a saved grant, including the `*` wildcard. |
+
+These commands require Torch's Admin promote level. The target player must be online with a loaded profile; profile operations intentionally do not create or edit offline accounts. Permission names are case-insensitive and may not contain whitespace. The profile service is the persistence authority; these commands do not silently mutate the separate in-memory `IPermissionService` cache.
 
 ## Build requirements
 

@@ -82,6 +82,7 @@ namespace SE.Roleplay.Framework.Torch
                 options,
                 new TorchFrameworkLogger());
             CharacterCommandModule.Framework = _context;
+            PlayerPermissionCommandModule.Framework = _context;
 
             _sessionManager = torch.Managers.GetManager<ITorchSessionManager>();
             if (_sessionManager == null)
@@ -434,6 +435,7 @@ namespace SE.Roleplay.Framework.Torch
             _directoryHttpClient = null;
 
             CharacterCommandModule.Framework = null;
+            PlayerPermissionCommandModule.Framework = null;
             ServerMembershipCommandModule.Shutdown();
             _context?.Logger.Info("Torch adapter stopped.");
             base.Dispose();
