@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
@@ -16,15 +17,19 @@ public partial class MainWindow : Window
     private readonly ServerDirectoryClient _directoryClient = new();
     private readonly SteamOpenIdService _steamSignIn = new();
     private readonly DesktopAuthorizationService _directoryAuthorization = new();
+    private readonly LauncherDirectoryApiClient _launcherApi;
     private readonly ObservableCollection<ServerListing> _servers = new();
     private readonly ObservableCollection<ServerListing> _visibleServers = new();
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
     private readonly ObservableCollection<ServerListing> _recentServers = new();
+    private readonly ObservableCollection<ServerListing> _ownedServers = new();
     private LauncherSettings _settings = new();
 
     public MainWindow()
     {
         InitializeComponent();
+        _launcherApi = new LauncherDirectoryApiClient(_directoryAuthorization);
+        OwnedServersList.ItemsSource = _ownedServers;
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
@@ -71,6 +76,9 @@ public partial class MainWindow : Window
                     FrameworkStatusText.Text = $"Could not restore directory session; saved credentials were retained for retry. ({ex.Message})";
                 }
             }
+
+            if (_directoryAuthorization.HasAccessToken)
+                await RefreshAccountDataAsync();
 
             if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl))
                 await RefreshServerDirectoryAsync();
@@ -134,7 +142,7 @@ public partial class MainWindow : Window
         ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
 
     private void CharactersNav_Click(object sender, RoutedEventArgs e) =>
-        ShowPage(CharactersPage, "PLAYER PROFILE", "Characters", CharactersNav);
+        ShowPage(CharactersPage, "PLAYER ACCOUNT", "Profile & server management", CharactersNav);
 
     private void SettingsNav_Click(object sender, RoutedEventArgs e) =>
         ShowPage(SettingsPage, "PREFERENCES", "Settings", SettingsNav);
@@ -156,9 +164,11 @@ public partial class MainWindow : Window
             {
                 FrameworkStatusText.Text = "Complete the directory authorization in your browser...";
                 var pair = await _directoryAuthorization.AuthorizeAsync(directoryUrl, steamId);
+                _settings.ServerDirectoryUrl = directoryUrl;
                 _settings.ProtectedDirectoryRefreshToken = RefreshTokenProtector.Protect(pair.RefreshToken);
                 await _settingsStore.SaveAsync(_settings);
                 FrameworkStatusText.Text = "Steam verified and directory account connected.";
+                await RefreshAccountDataAsync();
             }
             else
             {
@@ -179,6 +189,166 @@ public partial class MainWindow : Window
         {
             SteamSignInButton.IsEnabled = true;
             UpdateSteamStatus();
+        }
+    }
+
+    private async void RefreshAccount_Click(object sender, RoutedEventArgs e) =>
+        await RefreshAccountDataAsync();
+
+    private async Task RefreshAccountDataAsync()
+    {
+        if (!_directoryAuthorization.HasAccessToken)
+        {
+            ProfileStatusText.Text = "Sign in with Steam and authorize the directory to load your profile.";
+            OwnerStatusText.Text = "Directory account not connected.";
+            _ownedServers.Clear();
+            return;
+        }
+
+        var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+            ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            ProfileStatusText.Text = "Configure the directory HTTPS URL in Settings.";
+            return;
+        }
+
+        ProfileStatusText.Text = "Loading player profile...";
+        OwnerStatusText.Text = "Loading owned servers...";
+        try
+        {
+            var profile = await _launcherApi.GetProfileAsync(url);
+            ProfileSteamIdText.Text = profile.SteamId64;
+            ProfileDisplayNameBox.Text = profile.DisplayName;
+            ProfileBiographyBox.Text = profile.Biography;
+            ProfileStatusText.Text = string.IsNullOrWhiteSpace(profile.DisplayName)
+                ? "Profile found. Add a display name and save to create your player profile."
+                : $"Profile updated {profile.UpdatedAtUtc.ToLocalTime():g}.";
+
+            var servers = await _launcherApi.GetOwnedServersAsync(url);
+            _ownedServers.Clear();
+            foreach (var server in servers) _ownedServers.Add(server);
+            OwnerStatusText.Text = servers.Count == 0
+                ? "No servers are registered to this Steam account yet."
+                : $"Loaded {servers.Count} owned server(s). Select one to rotate its API key or delete it.";
+        }
+        catch (HttpRequestException ex)
+        {
+            ProfileStatusText.Text = $"Directory request failed: {ex.Message}";
+            OwnerStatusText.Text = "Could not load owned servers.";
+        }
+        catch (Exception ex)
+        {
+            ProfileStatusText.Text = $"Could not load account data: {ex.Message}";
+            OwnerStatusText.Text = "Could not load owned servers.";
+        }
+    }
+
+    private async void SaveProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_directoryAuthorization.HasAccessToken)
+        {
+            ProfileStatusText.Text = "Connect your directory account before saving your profile.";
+            return;
+        }
+
+        try
+        {
+            var profile = await _launcherApi.SaveProfileAsync(
+                _settings.ServerDirectoryUrl, ProfileDisplayNameBox.Text, ProfileBiographyBox.Text);
+            ProfileSteamIdText.Text = profile.SteamId64;
+            ProfileStatusText.Text = $"Profile saved at {profile.UpdatedAtUtc.ToLocalTime():g}.";
+        }
+        catch (Exception ex)
+        {
+            ProfileStatusText.Text = $"Profile could not be saved: {ex.Message}";
+        }
+    }
+
+    private async void RegisterOwnedServer_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_directoryAuthorization.HasAccessToken)
+        {
+            OwnerStatusText.Text = "Connect your directory account before registering a server.";
+            return;
+        }
+        if (!int.TryParse(OwnerServerPortBox.Text, out var port) || port is < 1 or > 65535 ||
+            !int.TryParse(OwnerServerMaxPlayersBox.Text, out var maxPlayers) || maxPlayers is < 1 or > 10000)
+        {
+            OwnerStatusText.Text = "Enter a valid port (1–65535) and max player count (1–10000).";
+            return;
+        }
+
+        try
+        {
+            var request = new RegisterOwnedServerDto(
+                OwnerServerNameBox.Text.Trim(),
+                OwnerServerDescriptionBox.Text.Trim(),
+                OwnerServerAddressBox.Text.Trim(),
+                port,
+                maxPlayers,
+                OwnerServerRegionBox.Text.Trim(),
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                OwnerServerTagsBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(20).ToList());
+            var created = await _launcherApi.CreateOwnedServerAsync(_settings.ServerDirectoryUrl, request);
+            OwnerServerApiKeyBox.Text = created.ApiKey;
+            OwnerStatusText.Text = $"{created.Name} registered. Copy the API key now; it is only shown once.";
+            OwnerServerNameBox.Clear();
+            OwnerServerDescriptionBox.Clear();
+            OwnerServerAddressBox.Clear();
+            OwnerServerRegionBox.Clear();
+            OwnerServerTagsBox.Clear();
+            await RefreshAccountDataAsync();
+        }
+        catch (Exception ex)
+        {
+            OwnerStatusText.Text = $"Server registration failed: {ex.Message}";
+        }
+    }
+
+    private async void RotateServerKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            OwnerStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+        if (MessageBox.Show($"Rotate the API key for {server.Name}? The old key will stop working immediately.",
+            "Rotate server API key", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            OwnerServerApiKeyBox.Text = await _launcherApi.RotateServerKeyAsync(_settings.ServerDirectoryUrl, server.Id);
+            OwnerStatusText.Text = $"API key rotated for {server.Name}. Update the server configuration immediately.";
+        }
+        catch (Exception ex)
+        {
+            OwnerStatusText.Text = $"Could not rotate API key: {ex.Message}";
+        }
+    }
+
+    private async void DeleteOwnedServer_Click(object sender, RoutedEventArgs e)
+    {
+        if (OwnedServersList.SelectedItem is not ServerListing server)
+        {
+            OwnerStatusText.Text = "Select one of your servers first.";
+            return;
+        }
+        if (MessageBox.Show($"Permanently remove {server.Name} from the public directory? This does not stop the game server.",
+            "Delete directory listing", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            await _launcherApi.DeleteOwnedServerAsync(_settings.ServerDirectoryUrl, server.Id);
+            OwnerServerApiKeyBox.Clear();
+            OwnerStatusText.Text = $"{server.Name} removed from the directory.";
+            await RefreshAccountDataAsync();
+        }
+        catch (Exception ex)
+        {
+            OwnerStatusText.Text = $"Could not delete server listing: {ex.Message}";
         }
     }
 
