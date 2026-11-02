@@ -8,7 +8,8 @@ A server-oriented roleplay framework for **Space Engineers 1**, designed to prov
 - Each Torch server remains authoritative for its own players, characters, permissions, and gameplay.
 - Character profiles are stored per server under the Torch instance's `Storage/SE-Roleplay-Framework/Players` directory. The same Steam account can have different characters on different servers.
 - The host-neutral .NET Standard 2.0 core contains session identity, events, module lifecycle, permissions, profile persistence, and character lifecycle services.
-- The .NET Framework 4.8 Torch adapter connects the core to Torch session and player lifecycle events.
+- The .NET Framework 4.8 Torch adapter connects the core to Torch session and player lifecycle events, and handles server-authorized in-game allowlist requests.
+- The SE1 client mod provides the graphical allowlist panel; the server validates every operation and retains the directory API key.
 - The .NET 8 directory API publishes server listings, accepts authenticated server heartbeats, and supports Steam-authenticated server-owner management.
 
 ## Repository layout
@@ -17,6 +18,7 @@ A server-oriented roleplay framework for **Space Engineers 1**, designed to prov
 src/
   SE.Roleplay.Framework.Core/       # Host-neutral services and persistence
   SE.Roleplay.Framework.Torch/      # Space Engineers 1 Torch adapter
+  SE.Roleplay.Framework.Client/     # SE1 in-game administration panel mod
 services/
   SE.Roleplay.Framework.Directory/  # Self-hosted server directory API
 launcher/

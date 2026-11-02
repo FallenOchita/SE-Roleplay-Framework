@@ -31,6 +31,10 @@
       <HintPath>$(TorchLibPath)\NLog.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sandbox.Common">
+      <HintPath>$(GameBinariesPath)\Sandbox.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="VRage.Game">
       <HintPath>$(GameBinariesPath)\VRage.Game.dll</HintPath>
       <Private>False</Private>
@@ -54,6 +58,7 @@
     <Error Condition="!Exists('$(TorchLibPath)\Torch.API.dll')" Text="Torch.API.dll was not found under TorchLibPath." />
     <Error Condition="!Exists('$(TorchLibPath)\Torch.Server.dll')" Text="Torch.Server.dll was not found under TorchLibPath. It is required for SE1 pre-admission events." />
     <Error Condition="!Exists('$(TorchLibPath)\NLog.dll')" Text="NLog.dll was not found under TorchLibPath." />
+    <Error Condition="!Exists('$(GameBinariesPath)\Sandbox.Common.dll')" Text="Sandbox.Common.dll was not found under GameBinariesPath." />
     <Error Condition="!Exists('$(GameBinariesPath)\VRage.Game.dll')" Text="VRage.Game.dll was not found under GameBinariesPath." />
   </Target>
 </Project>

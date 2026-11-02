@@ -13,6 +13,7 @@ using SE.Roleplay.Framework.Core.Identity;
 using SE.Roleplay.Framework.Core.Permissions;
 using SE.Roleplay.Framework.Core.Persistence;
 using SE.Roleplay.Framework.Torch.Commands;
+using Sandbox.ModAPI;
 using Newtonsoft.Json;
 using Torch;
 using Torch.API;
@@ -128,6 +129,10 @@ namespace SE.Roleplay.Framework.Torch
             if (_multiplayer != null)
                 DetachSession();
 
+            // The secure-message bridge is registered only while the world session is loaded.
+            // It validates sender identity and admin level before routing requests to the directory.
+            AdminPanelNetworkHandler.Start();
+
             _multiplayer = session.Managers.GetManager<IMultiplayerManagerBase>();
             if (_multiplayer == null)
             {
@@ -144,6 +149,7 @@ namespace SE.Roleplay.Framework.Torch
 
         private void DetachSession()
         {
+            AdminPanelNetworkHandler.Stop();
             if (_multiplayer == null)
                 return;
 

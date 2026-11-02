@@ -140,3 +140,20 @@ The Torch adapter exposes admin-only allowlist commands in both the Torch server
 | `!rp admin allowlist disable` | Disables enforcement but keeps the list. |
 
 Commands require Torch's Admin promote level. All operations are scoped to the server identified by the server API key. The key stays in the Torch process and is never placed in launcher settings. Admission remains enforced at Torch's pre-connection authentication hook.
+
+
+## Graphical in-game allowlist panel (initial implementation)
+
+The client mod project in `src/SE.Roleplay.Framework.Client` provides an in-game panel opened with **F6** for players recognized locally as server admins. It includes clickable refresh, add member, remove member, and enforcement-toggle actions.
+
+The Torch adapter registers the matching secure multiplayer message handler while a world session is loaded. For every request it uses the SteamID supplied by Space Engineers' secure-message callback, checks the sender's current server promote level, applies a per-sender request throttle, validates the packet, and then routes only fixed operations to the existing server-scoped directory API. The sender SteamID inside the serialized request is never used for authorization. The directory API key remains in the Torch process.
+
+Build the client mod against the same SE1 installation used by the server:
+
+```powershell
+dotnet build src/SE.Roleplay.Framework.Client/SE.Roleplay.Framework.Client.csproj -c Release -p:GameBinariesPath="C:\Program Files (x86)\Steam\steamapps\common\SpaceEngineers\Bin64"
+```
+
+Package the resulting client assembly under the mod's `Data/Scripts/SE.Roleplay.Framework.Client/` directory. Install the matching mod on the server and all clients. The channel ID and protocol version must match between client and Torch adapter.
+
+**Validation status:** the secure-message API and session lifecycle are wired in source, but this initial implementation has not yet been built against the target installed SE1/Torch assemblies or tested on a staging server. The client mod packaging, GUI behavior, and server message round-trip must be verified before release. Torch console commands remain available as a fallback.
