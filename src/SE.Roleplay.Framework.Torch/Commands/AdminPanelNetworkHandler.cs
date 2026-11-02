@@ -138,9 +138,17 @@ namespace SE.Roleplay.Framework.Torch.Commands
                     return;
 
                 var payload = response.Serialize();
-                // SE1 secure multiplayer messages have a 4 KiB packet ceiling.
+                // MyAPIGateway multiplayer calls must be made on the SE1 game thread.
+                // The directory request completes on a worker thread, so marshal the send.
                 if (payload.Length <= 4000)
-                    multiplayer.SendMessageTo(NetworkChannel, payload, recipient, true);
+                {
+                    MyAPIGateway.Utilities?.InvokeOnGameThread(() =>
+                    {
+                        var gameMultiplayer = MyAPIGateway.Multiplayer;
+                        if (gameMultiplayer != null && gameMultiplayer.IsServer)
+                            gameMultiplayer.SendMessageTo(NetworkChannel, payload, recipient, true);
+                    });
+                }
             }
             catch
             {
