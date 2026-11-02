@@ -26,7 +26,7 @@ public sealed class LauncherDirectoryApiClient(DesktopAuthorizationService autho
     {
         var result = await SendAsync<OwnedServersResponse>(HttpMethod.Get, directoryUrl,
             "/api/launcher/owner/servers", null, cancellationToken);
-        return result?.Servers ?? Array.Empty<ServerListing>();
+        return result is null ? Array.Empty<ServerListing>() : result.Servers;
     }
 
     public async Task<CreatedOwnedServerDto> CreateOwnedServerAsync(string directoryUrl, RegisterOwnedServerDto request,
