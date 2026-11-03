@@ -44,6 +44,27 @@
     <article class="panel rail-panel"><p class="section-label">YOUR HISTORY</p><div id="history" class="compact-list"><p class="muted">Your recently joined servers will appear here.</p></div></article>
   </aside>
 </main>
+
+<main id="profile-page" class="profile-page" hidden>
+ <div class="profile-page-heading"><div><p class="eyebrow">PLAYER ACCOUNT</p><h1>Your Player Profile</h1><p class="muted">Your public identity across the SE Roleplay community network.</p></div><button id="community-home" class="secondary-button" type="button">← BACK TO COMMUNITY</button></div>
+ <section class="profile-layout">
+  <article class="profile-card">
+   <div class="profile-avatar" id="profile-avatar">P</div>
+   <h2 id="profile-card-name">COMMUNITY PLAYER</h2>
+   <p id="profile-account-state" class="profile-account-state">Checking account…</p>
+   <div class="profile-identity"><span class="section-label">VERIFIED STEAMID64</span><strong id="profile-steam-id">Not connected</strong></div>
+   <p class="profile-card-note">Your Steam identity is verified by the directory. Your access tokens stay in the native launcher and are never sent to this page.</p>
+  </article>
+  <article class="profile-editor">
+   <p class="section-label">PUBLIC PLAYER DETAILS</p>
+   <label for="profile-display-name">DISPLAY NAME <span>40 CHARACTERS MAX</span></label>
+   <input id="profile-display-name" type="text" maxlength="40" autocomplete="nickname" placeholder="Choose a community display name">
+   <label for="profile-biography">BIOGRAPHY <span>500 CHARACTERS MAX</span></label>
+   <textarea id="profile-biography" maxlength="500" rows="6" placeholder="Tell the community a little about your player…"></textarea>
+   <div class="profile-editor-footer"><p id="profile-status" role="status" class="fine-print">Sign in with Steam and connect the directory to load your profile.</p><button id="profile-save" class="connect-button" type="button" disabled>SAVE PROFILE</button></div>
+  </article>
+ </section>
+</main>
 <div id="settings-dialog" class="modal-backdrop" hidden>
   <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="section-heading"><div><p class="eyebrow">LAUNCHER CONFIGURATION</p><h2 id="settings-title">Settings</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></div>
