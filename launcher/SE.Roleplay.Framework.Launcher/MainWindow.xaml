@@ -173,7 +173,24 @@
          <TextBlock Text="YOUR SERVERS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
          <Button DockPanel.Dock="Right" Content="REFRESH" Click="RefreshAccount_Click"/>
         </DockPanel>
-        <ListBox x:Name="OwnedServersList" DisplayMemberPath="Name" MinHeight="65" MaxHeight="150" Margin="0,0,0,10" SelectionChanged="OwnedServersList_SelectionChanged"/>
+        <ListBox x:Name="OwnedServersList" MinHeight="65" MaxHeight="190" Margin="0,0,0,10" SelectionChanged="OwnedServersList_SelectionChanged">
+         <ListBox.ItemTemplate>
+          <DataTemplate>
+           <StackPanel Margin="3,5">
+            <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+            <TextBlock Text="{Binding Status}" Foreground="{StaticResource AccentBrush}" FontSize="11"/>
+            <TextBlock Text="{Binding Players}" Foreground="{StaticResource MutedBrush}" FontSize="10"/>
+           </StackPanel>
+          </DataTemplate>
+         </ListBox.ItemTemplate>
+        </ListBox>
+        <Border Background="#18232C" BorderBrush="#2A3742" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,14">
+         <StackPanel>
+          <TextBlock Text="TORCH SERVER CONNECTION" FontSize="16" FontWeight="Bold"/>
+          <TextBlock x:Name="OwnerTorchStatusText" Text="Select a server to inspect its Torch heartbeat." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,6,0,8"/>
+          <TextBlock Text="Online means the directory received a heartbeat within 90 seconds. It does not verify that the game port is reachable. Keep the API key on the Torch host only." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="10" Margin="0,8,0,0"/>
+         </StackPanel>
+        </Border>
         <WrapPanel Margin="0,0,0,14">
          <Button Content="ROTATE SELECTED API KEY" Click="RotateServerKey_Click"/>
          <Button Content="DELETE SELECTED SERVER" Click="DeleteOwnedServer_Click"/>
