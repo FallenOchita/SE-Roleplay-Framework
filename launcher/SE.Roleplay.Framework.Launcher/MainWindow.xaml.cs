@@ -514,7 +514,22 @@ public partial class MainWindow : Window
 
     private async void OwnedServersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        UpdateTorchConnectionPanel(OwnedServersList.SelectedItem as ServerListing);
         await RefreshOwnerMembersAsync();
+    }
+
+    private void UpdateTorchConnectionPanel(ServerListing? server)
+    {
+        if (server is null)
+        {
+            OwnerTorchStatusText.Text = "Select one of your servers to inspect its Torch heartbeat.";
+            return;
+        }
+
+        var heartbeatOnline = string.Equals(server.Status, "Online", StringComparison.OrdinalIgnoreCase);
+        OwnerTorchStatusText.Text = heartbeatOnline
+            ? $"DIRECTORY HEARTBEAT: ONLINE · {server.Players}/{server.MaxPlayers} players · Version {server.Version}"
+            : $"DIRECTORY HEARTBEAT: OFFLINE · No heartbeat received in the last 90 seconds · {server.Players}/{server.MaxPlayers} players";
     }
 
     private async Task RefreshOwnerMembersAsync()
