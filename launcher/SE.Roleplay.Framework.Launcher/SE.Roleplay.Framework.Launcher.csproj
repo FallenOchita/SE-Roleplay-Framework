@@ -11,6 +11,6 @@
     <AssemblyMetadata Include="LauncherCommit" Value="$(LauncherCommitSha)" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
-    <Content Include="..\\..\\web\\launcher-ui\\**\\*" Link="launcher-ui\\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../web/launcher-ui/**/*" Link="launcher-ui/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
