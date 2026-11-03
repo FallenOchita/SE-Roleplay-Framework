@@ -34,6 +34,7 @@ if(bridge)bridge.addEventListener("message",event=>{
   state.profile=m;
   $("profile-steam-id").textContent=m.steamId||"Not connected";
   $("profile-avatar").textContent=avatar(m.displayName||"P");
+  $("profile-card-name").textContent=(m.displayName||"COMMUNITY PLAYER").toUpperCase();
   $("profile-display-name").value=m.displayName||"";
   $("profile-biography").value=m.biography||"";
   $("profile-account-state").textContent=m.authenticated?"DIRECTORY ACCOUNT CONNECTED":"SIGN IN WITH STEAM TO EDIT YOUR PROFILE";
@@ -42,6 +43,7 @@ if(bridge)bridge.addEventListener("message",event=>{
   if(profileRequested){profileRequested=false;showProfile();}
  }else if(m.type==="profile.error"){
   $("profile-status").textContent=m.message||"Could not load player profile.";
+  $("profile-save").disabled=!(state.profile&&state.profile.authenticated);
   profileRequested=false;
  }else if(m.type==="settings.updated"){
   $("directory-url").value=typeof m.directoryUrl==="string"?m.directoryUrl:"";
@@ -67,6 +69,7 @@ $("settings-save").addEventListener("click",()=>{
 $("steam-signin").addEventListener("click",()=>send({type:"steam.signin"}));
 $("profile").addEventListener("click",event=>{event.preventDefault();profileRequested=true;send({type:"profile.get"});});
 $("community-home").addEventListener("click",showCommunity);
+document.querySelector("nav a[href=\"#home\"]").addEventListener("click",event=>{event.preventDefault();showCommunity();});
 $("profile-save").addEventListener("click",()=>{
  const displayName=$("profile-display-name").value.trim(),biography=$("profile-biography").value.trim();
  if(displayName.length>40){$("profile-status").textContent="Display name must be 40 characters or fewer.";return;}
