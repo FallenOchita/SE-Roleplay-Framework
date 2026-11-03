@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<OwnerServerMemberDto> _ownedServerMembers = new();
     private LauncherSettings _settings = new();
     private bool _communityWebViewInitialized;
-    private bool _showCommunityWebView;
+    private bool _showCommunityWebView = true;
 
     public MainWindow()
     {
@@ -98,6 +98,10 @@ public partial class MainWindow : Window
 
             if (!string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl))
                 await RefreshServerDirectoryAsync();
+
+            // Start in the embedded community browser; the native WPF list remains a fallback.
+            await InitializeCommunityWebViewAsync();
+            ToggleCommunityBrowserButton.Content = "USE CLASSIC BROWSER";
         }
         catch (Exception ex)
         {
