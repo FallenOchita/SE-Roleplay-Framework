@@ -1,5 +1,47 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>SE1 Roleplay Communities</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
-<body><main class="shell"><header class="hero"><p class="eyebrow">SE1 ROLEPLAY NETWORK</p><h1>Find your community.</h1><p class="intro">Discover roleplay servers, save favorites, and connect through the desktop launcher.</p></header>
-<section class="toolbar" aria-label="Server controls"><label class="visually-hidden" for="search">Search communities</label><input id="search" type="search" placeholder="Search name, region, or description"><label class="visually-hidden" for="filter">Filter communities</label><select id="filter"><option value="all">All communities</option><option value="online">Online</option><option value="offline">Offline</option><option value="favorites">Favorites</option></select><button id="refresh" type="button">Refresh</button></section>
-<div class="list-heading"><p id="status" role="status">Connecting to the launcher…</p><p id="result-count" aria-live="polite">0 communities</p></div><section id="servers" class="servers" aria-live="polite"></section></main></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><title>SE Roleplay | Community Launcher</title>
+<link rel="stylesheet" href="styles.css"><script src="app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#home" aria-label="SE Roleplay home"><span class="brand-mark">S</span><span>SE ROLEPLAY</span></a>
+  <nav aria-label="Main navigation"><a href="#home">Community</a><a href="#servers">Browse servers</a><a href="#activity">My activity</a></nav>
+  <div class="top-actions"><span id="connection-state" class="connection-state">Connecting…</span><button id="settings" class="icon-button" type="button" aria-label="Open settings" title="Settings">⚙</button><button id="close" class="icon-button close-button" type="button" aria-label="Close launcher" title="Close">×</button></div>
+</header>
+<main class="dashboard" id="home">
+  <section class="main-column">
+    <div class="overview-grid">
+      <article class="browse-tile">
+        <div><p class="eyebrow">SPACE ENGINEERS ROLEPLAY NETWORK</p><h1>Find your next story.</h1><p class="muted">Explore communities, meet crews, and jump straight into your next adventure.</p></div>
+        <a class="browse-link" href="#servers">BROWSE SERVERS <span>▶</span></a>
+      </article>
+      <article class="panel last-panel" id="activity">
+        <p class="section-label">LAST CONNECTED SERVER</p><div id="last-connected" class="activity-content"><p class="muted">You haven't joined a community yet.</p></div>
+      </article>
+      <article class="panel quick-panel">
+        <div class="panel-heading"><p class="section-label">FAVORITES</p><span aria-hidden="true">♡</span></div>
+        <div id="favorite-preview" class="compact-list"><p class="muted">Your saved communities appear here.</p></div>
+        <a href="#servers" class="subtle-link">VIEW FAVORITES ↓</a>
+      </article>
+    </div>
+    <section class="featured-section">
+      <div class="section-heading"><h2>FEATURED COMMUNITIES</h2><span id="featured-count" class="muted">Waiting for directory</span></div>
+      <div id="featured" class="featured-grid"><p class="empty">Connecting to the community directory…</p></div>
+    </section>
+    <section class="server-section" id="servers">
+      <div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h2>Browse servers</h2></div><button id="refresh" type="button" class="secondary-button">↻ REFRESH</button></div>
+      <div class="toolbar"><label class="visually-hidden" for="search">Search communities</label><input id="search" type="search" placeholder="Search by name, region, or description"><label class="visually-hidden" for="filter">Filter communities</label><select id="filter"><option value="all">All communities</option><option value="online">Online</option><option value="offline">Offline</option><option value="favorites">Favorites</option></select></div>
+      <div class="list-heading"><p id="status" role="status">Waiting for launcher connection…</p><p id="result-count" aria-live="polite">0 communities</p></div>
+      <section id="servers-list" class="servers" aria-live="polite"></section>
+    </section>
+  </section>
+  <aside class="right-rail">
+    <article class="notice-panel"><p class="section-label">COMMUNITY NOTICE</p><h3>Welcome to the network</h3><p>Choose a server to view its details and connect through Steam. Your game stays under your control.</p></article>
+    <article class="panel rail-panel"><div class="panel-heading"><p class="section-label">LAUNCHER STATUS</p><span class="status-dot"></span></div><p id="directory-status" class="muted">Waiting for directory updates.</p><p class="fine-print">Online status reflects the server's recent directory heartbeat. It does not guarantee that its game port is reachable.</p></article>
+    <article class="panel rail-panel"><p class="section-label">YOUR HISTORY</p><div id="history" class="compact-list"><p class="muted">Your recently joined servers will appear here.</p></div></article>
+  </aside>
+</main>
+</body></html>

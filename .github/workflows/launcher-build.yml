@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "launcher/**"
+      - "web/launcher-ui/**"
       - ".github/workflows/launcher-build.yml"
   push:
     branches:

@@ -192,6 +192,12 @@ public partial class MainWindow : Window
                         case "servers.refresh":
                             await RefreshServerDirectoryAsync();
                             break;
+                        case "settings.open":
+                            ShowPage(SettingsPage, "LAUNCHER CONFIGURATION", "Settings", SettingsNav);
+                            break;
+                        case "launcher.close":
+                            Close();
+                            break;
                         case "server.connect":
                             if (!root.TryGetProperty("serverId", out var idElement) ||
                                 idElement.ValueKind != JsonValueKind.String)
