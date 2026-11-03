@@ -20,7 +20,7 @@ public sealed class ChatWarningServiceTests
         var warnings = service.GetWarnings(76561198000000001);
         Assert.Equal(2, warnings.Count);
         Assert.Equal(second, warnings[0].CreatedAtUtc);
-        Assert.Equal(76561198000000003, warnings[0].ModeratorSteamId);
+        Assert.Equal(76561198000000003UL, warnings[0].ModeratorSteamId);
     }
 
     [Fact]
