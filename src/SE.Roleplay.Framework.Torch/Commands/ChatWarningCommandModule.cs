@@ -16,6 +16,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
         private static readonly object Sync = new object();
         private static string? _configurationPath;
         private static ChatWarningService? _service;
+        private static bool _loadFailed;
 
         internal static void Configure(string configurationPath, Action<string>? log = null)
         {
@@ -23,6 +24,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
             {
                 _configurationPath = configurationPath;
                 _service = new ChatWarningService();
+                _loadFailed = false;
                 var directory = Path.GetDirectoryName(configurationPath);
                 if (!string.IsNullOrWhiteSpace(directory))
                     Directory.CreateDirectory(directory);
@@ -45,7 +47,8 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 catch (Exception exception)
                 {
                     _service = new ChatWarningService();
-                    log?.Invoke("Chat warning ledger could not be loaded; starting with an empty in-memory ledger. Existing file was not overwritten. " + exception.Message);
+                    _loadFailed = true;
+                    log?.Invoke("Chat warning ledger could not be loaded; warning commands are disabled until the file is repaired. Existing file was not overwritten. " + exception.Message);
                 }
             }
         }
@@ -56,6 +59,7 @@ namespace SE.Roleplay.Framework.Torch.Commands
             {
                 _service = null;
                 _configurationPath = null;
+                _loadFailed = false;
             }
         }
 
@@ -163,8 +167,12 @@ namespace SE.Roleplay.Framework.Torch.Commands
                 ulong.TryParse(value, out steamId) && steamId != 0;
         }
 
-        private static ChatWarningService RequireService() =>
-            _service ?? throw new InvalidOperationException("The chat warning ledger is not initialized.");
+        private static ChatWarningService RequireService()
+        {
+            if (_loadFailed)
+                throw new InvalidOperationException("The warning ledger failed to load. Repair ChatWarnings.json before using warning commands.");
+            return _service ?? throw new InvalidOperationException("The chat warning ledger is not initialized.");
+        }
 
         private static void SaveLocked()
         {

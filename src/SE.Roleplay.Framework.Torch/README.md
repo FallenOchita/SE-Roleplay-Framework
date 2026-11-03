@@ -122,6 +122,24 @@ Administrators (Torch Admin promote level) can use:
 
 This is a simple phrase filter, not a full language classifier. Substring matching can block benign messages that contain a configured phrase; keep rules narrow and review them with players before enabling them on a live server.
 
+## Chat warning review
+
+Torch Admin moderators can issue and review persistent chat warnings. The warning ledger is stored separately from phrase rules at:
+
+```
+<Torch instance>/Storage/SE-Roleplay-Framework/ChatWarnings.json
+```
+
+Commands (use a quoted reason when it contains spaces):
+
+| Command | Action |
+| --- | --- |
+| `!rp admin chatmoderation warn <SteamID64> "reason"` | Records a warning with the issuing moderator's authenticated SteamID64 and UTC timestamp. |
+| `!rp admin chatmoderation warnings <SteamID64>` | Reviews the latest 10 warnings, including moderator and timestamp. |
+| `!rp admin chatmoderation clearwarnings <SteamID64> CONFIRM` | Permanently clears that player's warning history; the explicit confirmation argument is required. |
+
+The ledger stores up to 100 warnings per player and 5,000 total. Reasons are limited to 3-240 characters. If the JSON file is invalid or has an unsupported version, warning commands remain disabled and the existing file is preserved for repair rather than overwritten. These are moderator-issued records; blocked messages do not automatically generate warnings.
+
 ## Build requirements
 
 Torch and Space Engineers ship proprietary runtime assemblies. They are not included in this repository and must be supplied from the server installation you use to test the plugin.
