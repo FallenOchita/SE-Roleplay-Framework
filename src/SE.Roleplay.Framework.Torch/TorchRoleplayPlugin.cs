@@ -90,6 +90,7 @@ namespace SE.Roleplay.Framework.Torch
             _context.Logger.Info("Maximum characters per player: " + options.MaximumCharactersPerPlayer + ".");
             CharacterCommandModule.Framework = _context;
             PlayerPermissionCommandModule.Framework = _context;
+            ChatModerationCommandModule.Configure(Path.Combine(options.DataDirectory, "ChatModeration.json"), message => _context.Logger.Warn(message));
 
             _sessionManager = torch.Managers.GetManager<ITorchSessionManager>();
             if (_sessionManager == null)
@@ -152,7 +153,7 @@ namespace SE.Roleplay.Framework.Torch
             }
             else
             {
-                _context?.Logger.Warn("Torch IChatManagerServer was unavailable; native Lua chat moderation is inactive.");
+                _context?.Logger.Warn("Torch IChatManagerServer was unavailable; native public-chat moderation is inactive.");
             }
 
             _multiplayer = session.Managers.GetManager<IMultiplayerManagerBase>();
@@ -191,8 +192,7 @@ namespace SE.Roleplay.Framework.Torch
 
         private void OnChatMessageProcessing(TorchChatMessage message, ref bool consumed)
         {
-            if (consumed || _luaScriptHost == null ||
-                !message.AuthorSteamId.HasValue || message.AuthorSteamId.Value == 0)
+            if (consumed || !message.AuthorSteamId.HasValue || message.AuthorSteamId.Value == 0)
                 return;
 
             // Native public and faction channels are moderated. Private/direct messages are
@@ -201,11 +201,21 @@ namespace SE.Roleplay.Framework.Torch
             if (channel != "global" && channel != "faction")
                 return;
 
-            if (!_luaScriptHost.EvaluateChatMessage(
+            var text = message.Message ?? string.Empty;
+            var moderation = ChatModerationCommandModule.Service;
+            if (moderation != null && moderation.IsBlocked(text, out var matchedPhrase))
+            {
+                consumed = true;
+                _context?.Logger.Info("Blocked public chat message from " +
+                    message.AuthorSteamId.Value + " by configured phrase rule '" + matchedPhrase + "'.");
+                return;
+            }
+
+            if (_luaScriptHost != null && !_luaScriptHost.EvaluateChatMessage(
                 message.AuthorSteamId.Value,
                 message.Author ?? "Player",
                 channel,
-                message.Message ?? string.Empty))
+                text))
                 consumed = true;
         }
 
@@ -613,6 +623,7 @@ namespace SE.Roleplay.Framework.Torch
 
             CharacterCommandModule.Framework = null;
             PlayerPermissionCommandModule.Framework = null;
+            ChatModerationCommandModule.Shutdown();
             LuaCommandModule.Host = null;
             _luaScriptHost?.Dispose();
             _luaScriptHost = null;
