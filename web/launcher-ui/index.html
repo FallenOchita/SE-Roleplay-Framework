@@ -1,27 +1,5 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>SE1 Roleplay Communities</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
-</head>
-<body>
-  <main class="shell">
-    <header>
-      <p class="eyebrow">SE1 ROLEPLAY NETWORK</p>
-      <h1>Find your community.</h1>
-      <p class="intro">Browse roleplay servers and connect through the desktop launcher.</p>
-    </header>
-    <section class="toolbar" aria-label="Server controls">
-      <label for="search">Search communities</label>
-      <input id="search" type="search" placeholder="Name, region, or description">
-      <button id="refresh" type="button">Refresh</button>
-    </section>
-    <p id="status" role="status">Waiting for the C# launcher connection…</p>
-    <section id="servers" class="servers" aria-live="polite"></section>
-  </main>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>SE1 Roleplay Communities</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body><main class="shell"><header class="hero"><p class="eyebrow">SE1 ROLEPLAY NETWORK</p><h1>Find your community.</h1><p class="intro">Discover roleplay servers, save favorites, and connect through the desktop launcher.</p></header>
+<section class="toolbar" aria-label="Server controls"><label class="visually-hidden" for="search">Search communities</label><input id="search" type="search" placeholder="Search name, region, or description"><label class="visually-hidden" for="filter">Filter communities</label><select id="filter"><option value="all">All communities</option><option value="online">Online</option><option value="offline">Offline</option><option value="favorites">Favorites</option></select><button id="refresh" type="button">Refresh</button></section>
+<div class="list-heading"><p id="status" role="status">Connecting to the launcher…</p><p id="result-count" aria-live="polite">0 communities</p></div><section id="servers" class="servers" aria-live="polite"></section></main></body></html>
