@@ -4,6 +4,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Text.Json;
+using Microsoft.Web.WebView2.Core;
 using SE.Roleplay.Framework.Launcher.Models;
 using SE.Roleplay.Framework.Launcher.Services;
 
@@ -26,6 +28,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ServerListing> _ownedServers = new();
     private readonly ObservableCollection<OwnerServerMemberDto> _ownedServerMembers = new();
     private LauncherSettings _settings = new();
+    private bool _communityWebViewInitialized;
+    private bool _showCommunityWebView;
 
     public MainWindow()
     {
@@ -135,6 +139,136 @@ public partial class MainWindow : Window
                 ? new SolidColorBrush(Color.FromRgb(11, 23, 18))
                 : (Brush)FindResource("TextBrush");
         }
+    }
+
+    private async Task InitializeCommunityWebViewAsync()
+    {
+        if (_communityWebViewInitialized) return;
+
+        try
+        {
+            var uiDirectory = Path.Combine(AppContext.BaseDirectory, "launcher-ui");
+            var indexPath = Path.GetFullPath(Path.Combine(uiDirectory, "index.html"));
+            if (!File.Exists(indexPath))
+                throw new FileNotFoundException("The bundled community browser UI was not found.", indexPath);
+
+            await CommunityWebView.EnsureCoreWebView2Async();
+            var core = CommunityWebView.CoreWebView2;
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.IsStatusBarEnabled = false;
+            var expectedPage = new Uri(indexPath).AbsoluteUri;
+
+            core.NavigationStarting += (_, args) =>
+            {
+                if (!string.Equals(args.Uri, expectedPage, StringComparison.OrdinalIgnoreCase))
+                    args.Cancel = true;
+            };
+
+            core.WebMessageReceived += async (_, args) =>
+            {
+                if (!string.Equals(args.Source, expectedPage, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                try
+                {
+                    using var document = JsonDocument.Parse(args.WebMessageAsJson);
+                    var root = document.RootElement;
+                    if (!root.TryGetProperty("version", out var version) || version.GetInt32() != 1 ||
+                        !root.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
+                        return;
+
+                    switch (typeElement.GetString())
+                    {
+                        case "servers.refresh":
+                            await RefreshServerDirectoryAsync();
+                            break;
+                        case "server.connect":
+                            if (!root.TryGetProperty("serverId", out var idElement) ||
+                                idElement.ValueKind != JsonValueKind.String)
+                                return;
+
+                            var serverId = idElement.GetString();
+                            if (string.IsNullOrWhiteSpace(serverId) || serverId.Length > 128)
+                                return;
+
+                            // Resolve the identifier against the trusted directory cache. The page
+                            // never supplies an address, port, executable path, or launch command.
+                            var server = _servers.FirstOrDefault(item =>
+                                string.Equals(item.Id, serverId, StringComparison.Ordinal));
+                            if (server is null || !IsJoinable(server))
+                            {
+                                FrameworkStatusText.Text = "That server is no longer available or has an invalid endpoint. Refresh the directory.";
+                                return;
+                            }
+
+                            await JoinServerAsync(server);
+                            break;
+                    }
+                }
+                catch (JsonException)
+                {
+                    FrameworkStatusText.Text = "The community browser sent an invalid request.";
+                }
+                catch (Exception ex)
+                {
+                    FrameworkStatusText.Text = $"Community browser request failed: {ex.Message}";
+                }
+            };
+
+            CommunityWebView.Source = new Uri(expectedPage);
+            _communityWebViewInitialized = true;
+            PublishServersToCommunityWebView();
+        }
+        catch (Exception ex)
+        {
+            _showCommunityWebView = false;
+            CommunityWebView.Visibility = Visibility.Collapsed;
+            ServerList.Visibility = Visibility.Visible;
+            ToggleCommunityBrowserButton.Content = "OPEN WEB BROWSER";
+            FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
+        }
+    }
+
+    private void PublishServersToCommunityWebView()
+    {
+        var core = CommunityWebView.CoreWebView2;
+        if (core is null || !_communityWebViewInitialized) return;
+
+        var message = new
+        {
+            version = 1,
+            type = "servers.updated",
+            servers = _servers.Select(server => new
+            {
+                id = server.Id,
+                name = server.Name,
+                description = server.Description,
+                address = server.Address,
+                port = server.Port,
+                players = server.Players,
+                maxPlayers = server.MaxPlayers,
+                region = server.Region,
+                status = server.Status
+            }).ToArray()
+        };
+
+        core.PostWebMessageAsJson(JsonSerializer.Serialize(message));
+    }
+
+    private async void ToggleCommunityBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        _showCommunityWebView = !_showCommunityWebView;
+        if (_showCommunityWebView)
+        {
+            await InitializeCommunityWebViewAsync();
+            if (!_communityWebViewInitialized) return;
+        }
+
+        CommunityWebView.Visibility = _showCommunityWebView ? Visibility.Visible : Visibility.Collapsed;
+        ServerList.Visibility = _showCommunityWebView ? Visibility.Collapsed : Visibility.Visible;
+        ToggleCommunityBrowserButton.Content = _showCommunityWebView ? "USE CLASSIC BROWSER" : "OPEN WEB BROWSER";
+        if (_showCommunityWebView) PublishServersToCommunityWebView();
     }
 
     private void UpdateGameStatus()
@@ -561,6 +695,7 @@ public partial class MainWindow : Window
             _featuredServers.Clear();
             ApplyServerFilters();
             UpdateHomeEmptyStates();
+            PublishServersToCommunityWebView();
             return;
         }
 
@@ -581,6 +716,7 @@ public partial class MainWindow : Window
                 : $"Showing {results.Count} published server(s). Player counts depend on directory updates.";
             ApplyServerFilters();
             UpdateHomeEmptyStates();
+            PublishServersToCommunityWebView();
         }
         catch (Exception ex)
         {
@@ -590,6 +726,7 @@ public partial class MainWindow : Window
             DirectoryStatusText.Text = $"Could not load directory: {ex.Message}";
             ApplyServerFilters();
             UpdateHomeEmptyStates();
+            PublishServersToCommunityWebView();
         }
     }
 
