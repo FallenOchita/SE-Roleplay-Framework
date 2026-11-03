@@ -1,6 +1,7 @@
 (() => {
 "use strict";
 const state={servers:[],favorites:new Set(),history:[],last:null};
+let settingsRequested=false;
 const $=id=>document.getElementById(id), storageKey="serpf.community-dashboard.v2";
 try{const saved=JSON.parse(localStorage.getItem(storageKey)||"{}");if(Array.isArray(saved.favorites))saved.favorites.filter(x=>typeof x==="string").forEach(x=>state.favorites.add(x));if(Array.isArray(saved.history))state.history=saved.history.filter(x=>typeof x==="string").slice(0,8);if(typeof saved.last==="string")state.last=saved.last;}catch{}
 function save(){try{localStorage.setItem(storageKey,JSON.stringify({favorites:[...state.favorites],history:state.history,last:state.last}));}catch{}}
@@ -18,13 +19,16 @@ if(bridge)bridge.addEventListener("message",event=>{
   $("game-path").value=typeof m.gamePath==="string"?m.gamePath:"";
   $("steam-account").textContent=m.steamId?"STEAM "+m.steamId:"";
   $("steam-signin").textContent=m.steamId?"STEAM CONNECTED":"SIGN IN WITH STEAM";
-  $("settings-dialog").hidden=false;
-  $("settings-status").textContent=m.directoryConnected?"Directory account connected.":"Settings loaded. Directory sign-in may be required.";
+  if(settingsRequested){
+   settingsRequested=false;
+   $("settings-dialog").hidden=false;
+   $("settings-status").textContent=m.status|| (m.directoryConnected?"Directory account connected.":"Settings loaded. Directory sign-in may be required.");
+  }
  }
 });
 $("search").addEventListener("input",render);$("filter").addEventListener("change",render);
 $("refresh").addEventListener("click",()=>send({type:"servers.refresh"}));
-$("settings").addEventListener("click",()=>send({type:"settings.get"}));
+$("settings").addEventListener("click",()=>{settingsRequested=true;send({type:"settings.get"});});
 $("settings-close").addEventListener("click",()=>$("settings-dialog").hidden=true);
 $("settings-cancel").addEventListener("click",()=>$("settings-dialog").hidden=true);
 $("settings-save").addEventListener("click",()=>{
