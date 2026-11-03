@@ -44,6 +44,7 @@ if(bridge)bridge.addEventListener("message",event=>{
  }else if(m.type==="profile.error"){
   $("profile-status").textContent=m.message||"Could not load player profile.";
   $("profile-save").disabled=!(state.profile&&state.profile.authenticated);
+  if(profileRequested)showProfile();
   profileRequested=false;
  }else if(m.type==="settings.updated"){
   $("directory-url").value=typeof m.directoryUrl==="string"?m.directoryUrl:"";
