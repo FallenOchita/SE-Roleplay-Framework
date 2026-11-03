@@ -90,6 +90,13 @@ public sealed class ServerDirectoryStore
             "SELECT * FROM directory_servers WHERE owner_steam_id64 = $owner ORDER BY name COLLATE NOCASE, id;",
             command => command.Parameters.AddWithValue("$owner", ownerSteamId64),
             cancellationToken);
+
+        // Keep owner diagnostics consistent with the public directory listing.
+        // A heartbeat is considered current for the same 90-second window.
+        var now = DateTime.UtcNow;
+        foreach (var server in servers)
+            server.Status = now - server.LastHeartbeatUtc <= TimeSpan.FromSeconds(90) ? "Online" : "Offline";
+
         return servers.Select(SanitizeForDisplay).ToList();
     }
 
