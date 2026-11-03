@@ -51,7 +51,8 @@
     }
   }
 
-  window.addEventListener("message", event => {
+  const bridge = window.chrome && window.chrome.webview;
+  if (bridge) bridge.addEventListener("message", event => {
     const message = event.data;
     if (!message || message.version !== 1 || message.type !== "servers.updated" ||
         !Array.isArray(message.servers)) return;
