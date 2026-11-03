@@ -277,3 +277,8 @@ The scripting runtime now supports `rp.on("chatMessage", function(player, messag
 The Torch adapter now subscribes to `IChatManagerServer.MessageProcessing` while a world session is loaded. Torch supplies the authenticated author SteamID in `TorchChatMessage.AuthorSteamId`; the adapter passes that trusted identity, display name, original text, and normalized channel into `EvaluateChatMessage` before delivery. If Lua explicitly rejects the message, the adapter sets Torch's `consumed` flag so the message is not forwarded. The hook is detached on session unload and plugin disposal.
 
 The integration currently moderates native `global` and `faction` chat only. Private/direct messages are intentionally excluded, and custom RP local chat delivered through the framework's own secure-message transport is not part of this native hook. If the Torch chat manager is unavailable, the plugin logs a warning and leaves native chat unchanged. Build and test against the exact Torch and SE1 assemblies installed on the target server before production use.
+
+
+## Launcher owner heartbeat diagnostics
+
+The launcher owner page shows the status, player count/capacity, and reported version for each server registered to the signed-in Steam account. Selecting a server displays whether its directory heartbeat is current. The directory considers a listing offline after 90 seconds without a heartbeat. This status confirms only that the Torch plugin is reporting to the directory; it does not probe the Space Engineers game port or prove that clients can connect.

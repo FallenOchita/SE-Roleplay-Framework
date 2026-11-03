@@ -56,3 +56,8 @@ It sends an immediate heartbeat and then one every 30 seconds while the world is
 The Torch plugin exposes server-key-authenticated allowlist administration endpoints used only by the server process. Admins can manage membership and enforcement through Torch console commands or the in-game chat command menu. The desktop launcher does not manage allowlists or server members.
 
 See `src/SE.Roleplay.Framework.Torch/README.md` for the complete command list. All commands require Torch Admin permission, and all changes are scoped to the server's own API key.
+
+
+## Launcher owner heartbeat diagnostics
+
+The launcher owner page displays the selected server's directory heartbeat status, current/max player count, and reported version from the authenticated owner server feed. A listing is considered online only while its heartbeat is within the directory's 90-second freshness window. This is not a game-port probe and does not prove that players can connect.
