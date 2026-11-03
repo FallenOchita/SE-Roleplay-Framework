@@ -164,6 +164,11 @@ public partial class MainWindow : Window
                 if (!string.Equals(args.Uri, expectedPage, StringComparison.OrdinalIgnoreCase))
                     args.Cancel = true;
             };
+            core.NavigationCompleted += (_, args) =>
+            {
+                if (args.IsSuccess) PublishServersToCommunityWebView();
+                else FrameworkStatusText.Text = $"Community browser navigation failed: {args.WebErrorStatus}";
+            };
 
             core.WebMessageReceived += async (_, args) =>
             {
