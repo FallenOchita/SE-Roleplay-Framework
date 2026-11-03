@@ -40,7 +40,6 @@ public partial class MainWindow : Window
         ServerList.ItemsSource = _visibleServers;
         HomeServerList.ItemsSource = _featuredServers;
         RecentServerList.ItemsSource = _recentServers;
-        ShowPage(ServersPage, "SE1 ROLEPLAY NETWORK", "Browse Servers", ServersNav);
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -128,6 +127,8 @@ public partial class MainWindow : Window
 
     private void ShowPage(FrameworkElement page, string eyebrow, string title, Button active)
     {
+        CommunityWebView.Visibility = Visibility.Collapsed;
+        LegacyShell.Visibility = Visibility.Visible;
         HomePage.Visibility = Visibility.Collapsed;
         ServersPage.Visibility = Visibility.Collapsed;
         CharactersPage.Visibility = Visibility.Collapsed;
@@ -195,6 +196,12 @@ public partial class MainWindow : Window
                         case "settings.open":
                             ShowPage(SettingsPage, "LAUNCHER CONFIGURATION", "Settings", SettingsNav);
                             break;
+                        case "profile.open":
+                            ShowPage(CharactersPage, "PLAYER ACCOUNT", "Profile & server management", CharactersNav);
+                            break;
+                        case "launcher.minimize":
+                            WindowState = WindowState.Minimized;
+                            break;
                         case "launcher.close":
                             Close();
                             break;
@@ -241,6 +248,7 @@ public partial class MainWindow : Window
             CommunityWebView.Visibility = Visibility.Collapsed;
             ServerList.Visibility = Visibility.Visible;
             ToggleCommunityBrowserButton.Content = "OPEN WEB BROWSER";
+            ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
             FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
         }
     }
@@ -299,7 +307,14 @@ public partial class MainWindow : Window
     }
 
     private void HomeNav_Click(object sender, RoutedEventArgs e) =>
-        ShowPage(HomePage, "FEATURED COMMUNITIES", "Featured", HomeNav);
+        ShowCommunityDashboard();
+
+    private void ShowCommunityDashboard()
+    {
+        LegacyShell.Visibility = Visibility.Collapsed;
+        CommunityWebView.Visibility = Visibility.Visible;
+        if (_communityWebViewInitialized) PublishServersToCommunityWebView();
+    }
 
     private void ServersNav_Click(object sender, RoutedEventArgs e) =>
         ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
