@@ -324,6 +324,59 @@ public sealed class OwnerApiIntegrationTests
 
 
     [Fact]
+    public async Task TorchHeartbeat_RequiresServerKeyAndRejectsInvalidPlayerCounts()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var owner = factory.CreateOwnerClient(OwnerA);
+        var created = await RegisterAsync(owner);
+        var id = created.GetProperty("id").GetString()!;
+        var apiKey = created.GetProperty("apiKey").GetString()!;
+
+        using var missingKeyRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/servers/{id}/heartbeat")
+        {
+            Content = JsonContent.Create(new { players = 1, maxPlayers = 32, version = "SE1" })
+        };
+        using var missingKey = await owner.SendAsync(missingKeyRequest);
+        using var wrongKey = await SendHeartbeatAsync(owner, id, "not-the-server-key");
+        using var tooManyPlayers = await SendHeartbeatAsync(owner, id, apiKey, players: 33);
+        using var negativePlayers = await SendHeartbeatAsync(owner, id, apiKey, players: -1);
+        using var zeroCapacity = await SendHeartbeatAsync(owner, id, apiKey, maxPlayers: 0);
+        using var excessiveCapacity = await SendHeartbeatAsync(owner, id, apiKey, maxPlayers: 10001);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, missingKey.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongKey.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, tooManyPlayers.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, negativePlayers.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, zeroCapacity.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, excessiveCapacity.StatusCode);
+    }
+
+    [Fact]
+    public async Task TorchHeartbeat_UpdatesOwnerListingWithLiveRuntimeState()
+    {
+        using var factory = new DirectoryApiFactory();
+        using var owner = factory.CreateOwnerClient(OwnerA);
+        var created = await RegisterAsync(owner);
+        var id = created.GetProperty("id").GetString()!;
+        var apiKey = created.GetProperty("apiKey").GetString()!;
+
+        using var heartbeat = await SendHeartbeatAsync(
+            owner, id, apiKey, players: 7, maxPlayers: 48, version: "SE1 integration build");
+        Assert.Equal(HttpStatusCode.NoContent, heartbeat.StatusCode);
+
+        using var listingResponse = await owner.GetAsync("/api/owner/servers");
+        listingResponse.EnsureSuccessStatusCode();
+        using var listingJson = JsonDocument.Parse(await listingResponse.Content.ReadAsStringAsync());
+        var listing = Assert.Single(listingJson.RootElement.GetProperty("servers").EnumerateArray());
+
+        Assert.Equal(id, listing.GetProperty("id").GetString());
+        Assert.Equal(7, listing.GetProperty("players").GetInt32());
+        Assert.Equal(48, listing.GetProperty("maxPlayers").GetInt32());
+        Assert.Equal("SE1 integration build", listing.GetProperty("version").GetString());
+        Assert.Equal("Online", listing.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task SteamCallback_SignsInVerifiedSteamIdentityAndRotatesBrowserCookie()
     {
         using var factory = new DirectoryApiFactory(
@@ -493,11 +546,13 @@ public sealed class OwnerApiIntegrationTests
         return state;
     }
 
-    private static async Task<HttpResponseMessage> SendHeartbeatAsync(HttpClient client, string id, string apiKey)
+    private static async Task<HttpResponseMessage> SendHeartbeatAsync(
+        HttpClient client, string id, string apiKey,
+        int players = 1, int maxPlayers = 32, string version = "integration-test")
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/servers/{id}/heartbeat")
         {
-            Content = JsonContent.Create(new { players = 1, maxPlayers = 32, version = "integration-test" })
+            Content = JsonContent.Create(new { players, maxPlayers, version })
         };
         request.Headers.Add("X-Server-Api-Key", apiKey);
         return await client.SendAsync(request);
