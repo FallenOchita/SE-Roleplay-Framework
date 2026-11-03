@@ -193,10 +193,33 @@ public partial class MainWindow : Window
                             await RefreshServerDirectoryAsync();
                             break;
                         case "settings.open":
-                            ShowPage(SettingsPage, "LAUNCHER CONFIGURATION", "Settings", SettingsNav);
+                            PublishLauncherSettingsToCommunityWebView();
                             break;
                         case "launcher.close":
                             Close();
+                            break;
+                        case "launcher.minimize":
+                            WindowState = WindowState.Minimized;
+                            break;
+                        case "launcher.drag":
+                            try { DragMove(); } catch (InvalidOperationException) { }
+                            break;
+                        case "steam.signin":
+                            SteamSignInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                            break;
+                        case "settings.get":
+                        case "settings.open":
+                            PublishLauncherSettingsToCommunityWebView();
+                            break;
+                        case "settings.save":
+                            if (!root.TryGetProperty("directoryUrl", out var directoryElement) ||
+                                directoryElement.ValueKind != JsonValueKind.String ||
+                                !root.TryGetProperty("gamePath", out var gamePathElement) ||
+                                gamePathElement.ValueKind != JsonValueKind.String)
+                                return;
+                            DirectoryUrlBox.Text = directoryElement.GetString() ?? string.Empty;
+                            GamePathBox.Text = gamePathElement.GetString() ?? string.Empty;
+                            await SaveLauncherSettingsFromCommunityWebViewAsync();
                             break;
                         case "server.connect":
                             if (!root.TryGetProperty("serverId", out var idElement) ||
@@ -234,6 +257,7 @@ public partial class MainWindow : Window
             CommunityWebView.Source = new Uri(expectedPage);
             _communityWebViewInitialized = true;
             PublishServersToCommunityWebView();
+            PublishLauncherSettingsToCommunityWebView();
         }
         catch (Exception ex)
         {
@@ -243,6 +267,32 @@ public partial class MainWindow : Window
             ToggleCommunityBrowserButton.Content = "OPEN WEB BROWSER";
             FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
         }
+    }
+
+    private void PublishLauncherSettingsToCommunityWebView()
+    {
+        var core = CommunityWebView.CoreWebView2;
+        if (core is null || !_communityWebViewInitialized) return;
+        var payload = new
+        {
+            version = 1,
+            type = "settings.updated",
+            directoryUrl = _settings.ServerDirectoryUrl,
+            gamePath = _settings.GameExecutablePath,
+            steamId = _settings.SteamId64,
+            directoryConnected = _directoryAuthorization.HasAccessToken
+        };
+        core.PostWebMessageAsJson(JsonSerializer.Serialize(payload));
+    }
+
+    private async Task SaveLauncherSettingsFromCommunityWebViewAsync()
+    {
+        _settings.ServerDirectoryUrl = DirectoryUrlBox.Text.Trim();
+        _settings.GameExecutablePath = GamePathBox.Text.Trim();
+        await _settingsStore.SaveAsync(_settings);
+        UpdateGameStatus();
+        await RefreshServerDirectoryAsync();
+        PublishLauncherSettingsToCommunityWebView();
     }
 
     private void PublishServersToCommunityWebView()
@@ -355,6 +405,7 @@ public partial class MainWindow : Window
         {
             SteamSignInButton.IsEnabled = true;
             UpdateSteamStatus();
+            PublishLauncherSettingsToCommunityWebView();
         }
     }
 
