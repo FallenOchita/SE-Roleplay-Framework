@@ -20,7 +20,6 @@ public partial class MainWindow : Window
     private readonly SteamOpenIdService _steamSignIn = new();
     private readonly DesktopAuthorizationService _directoryAuthorization = new();
     private readonly LauncherDirectoryApiClient _launcherApi;
-    private readonly LauncherUpdateService _updateService = new();
     private readonly ObservableCollection<ServerListing> _servers = new();
     private readonly ObservableCollection<ServerListing> _visibleServers = new();
     private readonly ObservableCollection<ServerListing> _featuredServers = new();
@@ -47,9 +46,6 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (await _updateService.CheckAndStartUpdateAsync(this))
-                return;
-
             _settings = await _settingsStore.LoadAsync();
             DirectoryUrlBox.Text = _settings.ServerDirectoryUrl;
             GamePathBox.Text = _settings.GameExecutablePath;
