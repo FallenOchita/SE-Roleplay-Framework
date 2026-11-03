@@ -7,9 +7,9 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="#home" aria-label="SE Roleplay home"><span class="brand-mark">S</span><span>SE ROLEPLAY</span></a>
+  <a class="brand drag-handle" href="#home" aria-label="SE Roleplay home"><span class="brand-mark">S</span><span>SE ROLEPLAY</span></a>
   <nav aria-label="Main navigation"><a href="#home">Community</a><a href="#servers">Browse servers</a><a href="#activity">My activity</a><a id="profile" href="#profile">Profile &amp; owner</a></nav>
-  <div class="top-actions"><span id="connection-state" class="connection-state">Connecting…</span><button id="settings" class="icon-button" type="button" aria-label="Open settings" title="Settings">⚙</button><button id="minimize" class="icon-button" type="button" aria-label="Minimize launcher" title="Minimize">−</button><button id="close" class="icon-button close-button" type="button" aria-label="Close launcher" title="Close">×</button></div>
+  <div class="top-actions"><button id="steam-signin" class="secondary-button" type="button">SIGN IN WITH STEAM</button><span id="steam-account" class="connection-state"></span><span id="connection-state" class="connection-state">Connecting…</span><button id="settings" class="icon-button" type="button" aria-label="Open settings" title="Settings">⚙</button><button id="minimize" class="icon-button" type="button" aria-label="Minimize launcher" title="Minimize">−</button><button id="close" class="icon-button close-button" type="button" aria-label="Close launcher" title="Close">×</button></div>
 </header>
 <main class="dashboard" id="home">
   <section class="main-column">
@@ -44,4 +44,15 @@
     <article class="panel rail-panel"><p class="section-label">YOUR HISTORY</p><div id="history" class="compact-list"><p class="muted">Your recently joined servers will appear here.</p></div></article>
   </aside>
 </main>
+<div id="settings-dialog" class="modal-backdrop" hidden>
+  <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="section-heading"><div><p class="eyebrow">LAUNCHER CONFIGURATION</p><h2 id="settings-title">Settings</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></div>
+    <label for="directory-url">Community directory HTTPS URL</label>
+    <input id="directory-url" type="url" inputmode="url" placeholder="https://directory.example.com">
+    <label for="game-path">Space Engineers executable path</label>
+    <input id="game-path" type="text" placeholder="Detected automatically or set a path">
+    <p id="settings-status" class="fine-print" role="status">Settings are loaded from the launcher.</p>
+    <div class="card-actions"><button id="settings-save" class="connect-button" type="button">SAVE SETTINGS</button><button id="settings-cancel" class="secondary-button" type="button">CANCEL</button></div>
+  </section>
+</div>
 </body></html>
