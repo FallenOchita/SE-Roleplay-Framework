@@ -194,7 +194,42 @@ public partial class MainWindow : Window
                             await RefreshServerDirectoryAsync();
                             break;
                         case "settings.open":
-                            ShowPage(SettingsPage, "LAUNCHER CONFIGURATION", "Settings", SettingsNav);
+                        case "settings.get":
+                            PublishLauncherSettingsToCommunityWebView();
+                            break;
+                        case "settings.save":
+                            if (!root.TryGetProperty("directoryUrl", out var directoryElement) ||
+                                directoryElement.ValueKind != JsonValueKind.String ||
+                                !root.TryGetProperty("gamePath", out var gamePathElement) ||
+                                gamePathElement.ValueKind != JsonValueKind.String)
+                                return;
+
+                            var directoryUrl = (directoryElement.GetString() ?? string.Empty).Trim();
+                            var gamePath = (gamePathElement.GetString() ?? string.Empty).Trim();
+                            if (directoryUrl.Length > 2048 || gamePath.Length > 1024)
+                                return;
+                            if (!string.IsNullOrWhiteSpace(directoryUrl) &&
+                                (!Uri.TryCreate(directoryUrl, UriKind.Absolute, out var parsedDirectoryUrl) ||
+                                 parsedDirectoryUrl.Scheme != Uri.UriSchemeHttps))
+                            {
+                                PublishLauncherSettingsToCommunityWebView("Directory URL must use HTTPS.");
+                                return;
+                            }
+
+                            _settings.ServerDirectoryUrl = directoryUrl;
+                            _settings.GameExecutablePath = gamePath;
+                            DirectoryUrlBox.Text = directoryUrl;
+                            GamePathBox.Text = gamePath;
+                            await _settingsStore.SaveAsync(_settings);
+                            UpdateGameStatus();
+                            await RefreshServerDirectoryAsync();
+                            PublishLauncherSettingsToCommunityWebView("Settings saved.");
+                            break;
+                        case "steam.signin":
+                            SteamSignInButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                            break;
+                        case "launcher.drag":
+                            try { DragMove(); } catch (InvalidOperationException) { }
                             break;
                         case "profile.open":
                             ShowPage(CharactersPage, "PLAYER ACCOUNT", "Profile & server management", CharactersNav);
@@ -241,6 +276,7 @@ public partial class MainWindow : Window
             CommunityWebView.Source = new Uri(expectedPage);
             _communityWebViewInitialized = true;
             PublishServersToCommunityWebView();
+            PublishLauncherSettingsToCommunityWebView();
         }
         catch (Exception ex)
         {
@@ -251,6 +287,24 @@ public partial class MainWindow : Window
             ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
             FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
         }
+    }
+
+    private void PublishLauncherSettingsToCommunityWebView(string? status = null)
+    {
+        var core = CommunityWebView.CoreWebView2;
+        if (core is null || !_communityWebViewInitialized) return;
+
+        var payload = new
+        {
+            version = 1,
+            type = "settings.updated",
+            directoryUrl = _settings.ServerDirectoryUrl,
+            gamePath = _settings.GameExecutablePath,
+            steamId = _settings.SteamId64,
+            directoryConnected = _directoryAuthorization.HasAccessToken,
+            status
+        };
+        core.PostWebMessageAsJson(JsonSerializer.Serialize(payload));
     }
 
     private void PublishServersToCommunityWebView()
@@ -370,6 +424,7 @@ public partial class MainWindow : Window
         {
             SteamSignInButton.IsEnabled = true;
             UpdateSteamStatus();
+            PublishLauncherSettingsToCommunityWebView();
         }
     }
 
