@@ -91,6 +91,7 @@ namespace SE.Roleplay.Framework.Torch
             CharacterCommandModule.Framework = _context;
             PlayerPermissionCommandModule.Framework = _context;
             ChatModerationCommandModule.Configure(Path.Combine(options.DataDirectory, "ChatModeration.json"), message => _context.Logger.Warn(message));
+            ChatWarningCommandModule.Configure(Path.Combine(options.DataDirectory, "ChatWarnings.json"), message => _context.Logger.Warn(message));
 
             _sessionManager = torch.Managers.GetManager<ITorchSessionManager>();
             if (_sessionManager == null)
@@ -624,6 +625,7 @@ namespace SE.Roleplay.Framework.Torch
             CharacterCommandModule.Framework = null;
             PlayerPermissionCommandModule.Framework = null;
             ChatModerationCommandModule.Shutdown();
+            ChatWarningCommandModule.Shutdown();
             LuaCommandModule.Host = null;
             _luaScriptHost?.Dispose();
             _luaScriptHost = null;
