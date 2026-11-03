@@ -122,7 +122,7 @@
        <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*"/><ColumnDefinition Width="0.85*"/></Grid.ColumnDefinitions>
        <StackPanel Grid.Column="0" Margin="0,0,14,0">
         <TextBlock x:Name="ServerResultsText" Text="COMMUNITIES" Foreground="{StaticResource MutedBrush}" FontSize="11" FontWeight="Bold" Margin="0,0,0,10"/>
-        <Grid><ItemsControl x:Name="ServerList" ItemTemplate="{StaticResource ServerCardTemplate}"/><wv2:WebView2 x:Name="CommunityWebView" Visibility="Collapsed" MinHeight="560"/></Grid>
+        <Grid><ItemsControl x:Name="ServerList" ItemTemplate="{StaticResource ServerCardTemplate}" Visibility="Collapsed"/><wv2:WebView2 x:Name="CommunityWebView" Visibility="Visible" MinHeight="560"/></Grid>
         <TextBlock x:Name="ServerResultsEmptyText" Text="No servers match your filters." Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,10,0,0"/>
        </StackPanel>
        <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="#2A3742" BorderThickness="1" CornerRadius="10" Padding="18" VerticalAlignment="Top">

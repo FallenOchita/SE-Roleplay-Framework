@@ -1,17 +1,17 @@
 # JavaScript launcher UI
 
-This folder contains the browser-side UI layer for the SE1 RP launcher. The desktop shell and all trusted application operations remain in C#.
+Primary browser-based community discovery for the SE1 RP launcher.
 
-## Language boundary
+## Features
+- Search by server name, description, region, or address.
+- Filter online, offline, and favorited communities.
+- Save favorites in the WebView2 browser profile.
+- Show player counts and connection status.
+- Connect from a server card.
 
-- JavaScript owns presentation behavior, client-side filtering, and rendering of server cards.
-- C# owns Steam sign-in, filesystem access, game launching, saved credentials, and authoritative API calls.
-- When hosted inside WebView2, messages must cross a narrow, versioned message bridge. Never expose arbitrary .NET reflection, process execution, filesystem access, or raw credentials to JavaScript.
+## Trust boundary
+JavaScript owns presentation and client-side filtering. C# owns Steam sign-in, filesystem access, game launching, saved credentials, and authoritative API calls. The versioned WebView2 bridge exposes no arbitrary .NET reflection, process execution, filesystem access, or credentials.
 
-## Bridge contract (version 1)
+The host sends `servers.updated` with public listing fields only. The page requests `servers.refresh` or `server.connect` with a server ID. C# resolves that ID against its trusted directory cache and validates the endpoint; the page never supplies a raw command or executable path.
 
-The host may send a servers.updated message with a servers array containing public listing fields only: id, name, description, address, port, players, maxPlayers, region, and status.
-
-The page may request servers.refresh or server.connect with a server ID. The C# host must resolve the ID against its own trusted directory cache and validate the address and port; it must not accept a raw executable path or arbitrary command from page content.
-
-The starter UI intentionally renders a clear unavailable state until a desktop host attaches the bridge.
+The native WPF server list remains available as a fallback.
