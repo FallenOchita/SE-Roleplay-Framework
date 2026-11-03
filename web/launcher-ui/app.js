@@ -1,6 +1,7 @@
 (() => {
 "use strict";
-const state={servers:[],favorites:new Set(),history:[],last:null};
+const state={servers:[],favorites:new Set(),history:[],last:null,profile:null};
+let profileRequested=false;
 let settingsRequested=false;
 const $=id=>document.getElementById(id), storageKey="serpf.community-dashboard.v2";
 try{const saved=JSON.parse(localStorage.getItem(storageKey)||"{}");if(Array.isArray(saved.favorites))saved.favorites.filter(x=>typeof x==="string").forEach(x=>state.favorites.add(x));if(Array.isArray(saved.history))state.history=saved.history.filter(x=>typeof x==="string").slice(0,8);if(typeof saved.last==="string")state.last=saved.last;}catch{}
@@ -16,6 +17,8 @@ function renderActivity(){const last=$("last-connected");last.replaceChildren();
 const fav=$("favorite-preview");fav.replaceChildren();const favorites=state.servers.filter(s=>state.favorites.has(s.id)).slice(0,3);if(!favorites.length){const p=document.createElement("p");p.className="muted";p.textContent="Your saved communities appear here.";fav.append(p);}else favorites.forEach(s=>fav.append(makeCompact(s)));
 const hist=$("history");hist.replaceChildren();const history=state.history.map(id=>state.servers.find(s=>s.id===id)).filter(Boolean).slice(0,5);if(!history.length){const p=document.createElement("p");p.className="muted";p.textContent="Your recently joined servers will appear here.";hist.append(p);}else history.forEach(s=>hist.append(makeCompact(s)));
 }
+function showProfile(){ $("home").hidden=true; $("profile-page").hidden=false; window.scrollTo(0,0); }
+function showCommunity(){ $("profile-page").hidden=true; $("home").hidden=false; window.scrollTo(0,0); }
 function render(){const term=$("search").value.trim().toLowerCase(),mode=$("filter").value;const rows=state.servers.filter(s=>{const hay=[s.name,s.description,s.region,s.address].filter(Boolean).join(" ").toLowerCase();return(!term||hay.includes(term))&&(mode!=="online"||online(s))&&(mode!=="offline"||!online(s))&&(mode!=="favorites"||state.favorites.has(s.id));}).sort((a,b)=>Number(online(b))-Number(online(a))||String(a.name||"").localeCompare(String(b.name||"")));$("result-count").textContent=rows.length+" of "+state.servers.length+" communities";const list=$("servers-list");list.replaceChildren();if(!rows.length){const p=document.createElement("p");p.className="empty";p.textContent=state.servers.length?"No communities match these filters.":"No servers received yet. Configure the community directory in launcher Settings.";list.append(p);}else rows.forEach(s=>list.append(card(s)));
 const featured=$("featured");featured.replaceChildren();const top=state.servers.slice().sort((a,b)=>Number(online(b))-Number(online(a))||Number(b.players||0)-Number(a.players||0)).slice(0,3);$("featured-count").textContent=top.length?top.length+" communities":"No featured servers yet";if(!top.length){const p=document.createElement("p");p.className="empty";p.textContent="Featured communities will appear when the directory publishes servers.";featured.append(p);}else top.forEach(s=>featured.append(card(s,true)));renderActivity();}
 const bridge=window.chrome&&window.chrome.webview;
@@ -27,6 +30,19 @@ if(bridge)bridge.addEventListener("message",event=>{
   $("connection-state").textContent="DIRECTORY CONNECTED";
   $("directory-status").textContent=state.servers.length+" communities currently published.";
   render();
+ }else if(m.type==="profile.updated"){
+  state.profile=m;
+  $("profile-steam-id").textContent=m.steamId||"Not connected";
+  $("profile-avatar").textContent=avatar(m.displayName||"P");
+  $("profile-display-name").value=m.displayName||"";
+  $("profile-biography").value=m.biography||"";
+  $("profile-account-state").textContent=m.authenticated?"DIRECTORY ACCOUNT CONNECTED":"SIGN IN WITH STEAM TO EDIT YOUR PROFILE";
+  $("profile-status").textContent=m.status||(m.authenticated?"Profile loaded.":"Connect your Steam account and directory to create your player profile.");
+  $("profile-save").disabled=!m.authenticated;
+  if(profileRequested){profileRequested=false;showProfile();}
+ }else if(m.type==="profile.error"){
+  $("profile-status").textContent=m.message||"Could not load player profile.";
+  profileRequested=false;
  }else if(m.type==="settings.updated"){
   $("directory-url").value=typeof m.directoryUrl==="string"?m.directoryUrl:"";
   $("game-path").value=typeof m.gamePath==="string"?m.gamePath:"";
@@ -49,7 +65,15 @@ $("settings-save").addEventListener("click",()=>{
  $("settings-status").textContent="Saving launcher settings…";
 });
 $("steam-signin").addEventListener("click",()=>send({type:"steam.signin"}));
-$("profile").addEventListener("click",event=>{event.preventDefault();send({type:"profile.open"});});
+$("profile").addEventListener("click",event=>{event.preventDefault();profileRequested=true;send({type:"profile.get"});});
+$("community-home").addEventListener("click",showCommunity);
+$("profile-save").addEventListener("click",()=>{
+ const displayName=$("profile-display-name").value.trim(),biography=$("profile-biography").value.trim();
+ if(displayName.length>40){$("profile-status").textContent="Display name must be 40 characters or fewer.";return;}
+ if(biography.length>500){$("profile-status").textContent="Biography must be 500 characters or fewer.";return;}
+ $("profile-save").disabled=true;$("profile-status").textContent="Saving player profile…";
+ send({type:"profile.save",displayName,biography});
+});
 $("minimize").addEventListener("click",()=>send({type:"launcher.minimize"}));
 $("close").addEventListener("click",()=>send({type:"launcher.close"}));
 document.querySelector(".brand").addEventListener("pointerdown",event=>{if(event.button===0)send({type:"launcher.drag"});});
