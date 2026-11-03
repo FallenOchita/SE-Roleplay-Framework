@@ -234,6 +234,20 @@ public partial class MainWindow : Window
                         case "profile.open":
                             ShowPage(CharactersPage, "PLAYER ACCOUNT", "Profile & server management", CharactersNav);
                             break;
+                        case "profile.get":
+                            await LoadPlayerProfileForWebViewAsync();
+                            break;
+                        case "profile.save":
+                            if (!root.TryGetProperty("displayName", out var displayNameElement) ||
+                                displayNameElement.ValueKind != JsonValueKind.String ||
+                                !root.TryGetProperty("biography", out var biographyElement) ||
+                                biographyElement.ValueKind != JsonValueKind.String)
+                                return;
+
+                            await SavePlayerProfileFromWebViewAsync(
+                                displayNameElement.GetString() ?? string.Empty,
+                                biographyElement.GetString() ?? string.Empty);
+                            break;
                         case "launcher.minimize":
                             WindowState = WindowState.Minimized;
                             break;
@@ -287,6 +301,88 @@ public partial class MainWindow : Window
             ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
             FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
         }
+    }
+
+    private async Task LoadPlayerProfileForWebViewAsync()
+    {
+        if (!_directoryAuthorization.HasAccessToken)
+        {
+            PublishPlayerProfileToCommunityWebView(null, "Sign in with Steam and connect the directory to load your profile.");
+            return;
+        }
+
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            var profile = await _launcherApi.GetProfileAsync(url);
+            PublishPlayerProfileToCommunityWebView(profile);
+        }
+        catch (Exception ex)
+        {
+            PublishPlayerProfileErrorToCommunityWebView($"Could not load player profile: {ex.Message}");
+        }
+    }
+
+    private async Task SavePlayerProfileFromWebViewAsync(string displayName, string biography)
+    {
+        displayName = displayName.Trim();
+        biography = biography.Trim();
+        if (displayName.Length > 40 || biography.Length > 500)
+        {
+            PublishPlayerProfileErrorToCommunityWebView("Display name is limited to 40 characters and biography to 500 characters.");
+            return;
+        }
+        if (!_directoryAuthorization.HasAccessToken)
+        {
+            PublishPlayerProfileErrorToCommunityWebView("Sign in with Steam and connect the directory before saving.");
+            return;
+        }
+
+        try
+        {
+            var url = string.IsNullOrWhiteSpace(_settings.ServerDirectoryUrl)
+                ? DirectoryUrlBox.Text.Trim() : _settings.ServerDirectoryUrl;
+            var profile = await _launcherApi.SaveProfileAsync(url, displayName, biography);
+            PublishPlayerProfileToCommunityWebView(profile, $"Profile saved at {profile.UpdatedAtUtc.ToLocalTime():g}.");
+            ProfileSteamIdText.Text = profile.SteamId64;
+            ProfileDisplayNameBox.Text = profile.DisplayName;
+            ProfileBiographyBox.Text = profile.Biography;
+        }
+        catch (Exception ex)
+        {
+            PublishPlayerProfileErrorToCommunityWebView($"Profile could not be saved: {ex.Message}");
+        }
+    }
+
+    private void PublishPlayerProfileToCommunityWebView(PlayerProfileDto? profile, string? status = null)
+    {
+        var core = CommunityWebView.CoreWebView2;
+        if (core is null || !_communityWebViewInitialized) return;
+        var payload = new
+        {
+            version = 1,
+            type = "profile.updated",
+            authenticated = _directoryAuthorization.HasAccessToken,
+            steamId = profile?.SteamId64 ?? _settings.SteamId64,
+            displayName = profile?.DisplayName ?? string.Empty,
+            biography = profile?.Biography ?? string.Empty,
+            updatedAtUtc = profile?.UpdatedAtUtc,
+            status
+        };
+        core.PostWebMessageAsJson(JsonSerializer.Serialize(payload));
+    }
+
+    private void PublishPlayerProfileErrorToCommunityWebView(string message)
+    {
+        var core = CommunityWebView.CoreWebView2;
+        if (core is null || !_communityWebViewInitialized) return;
+        core.PostWebMessageAsJson(JsonSerializer.Serialize(new
+        {
+            version = 1,
+            type = "profile.error",
+            message
+        }));
     }
 
     private void PublishLauncherSettingsToCommunityWebView(string? status = null)
