@@ -248,6 +248,7 @@ public partial class MainWindow : Window
             CommunityWebView.Visibility = Visibility.Collapsed;
             ServerList.Visibility = Visibility.Visible;
             ToggleCommunityBrowserButton.Content = "OPEN WEB BROWSER";
+            ShowPage(ServersPage, "COMMUNITY DIRECTORY", "Browse servers", ServersNav);
             FrameworkStatusText.Text = $"Web browser unavailable; the built-in server list remains available. {ex.Message}";
         }
     }
