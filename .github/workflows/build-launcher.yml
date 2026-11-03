@@ -5,7 +5,7 @@ env:
 
 on:
   push:
-    paths: ["launcher/**", ".github/workflows/build-launcher.yml"]
+    paths: ["launcher/**", "web/launcher-ui/**", ".github/workflows/build-launcher.yml"]
   pull_request:
     paths: ["launcher/**", ".github/workflows/build-launcher.yml"]
   workflow_dispatch:
